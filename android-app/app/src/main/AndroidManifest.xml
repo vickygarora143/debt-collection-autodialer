@@ -20,6 +20,8 @@
     <!-- Keep calling loop active during high-volume shifts -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 1-Tap In-App Package Update Installation -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
@@ -29,6 +31,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DebtFlowDialer"
         android:usesCleartextTraffic="true">
+
+        <!-- FileProvider for Secure In-App APK Updating -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
 
         <activity
             android:name=".MainActivity"

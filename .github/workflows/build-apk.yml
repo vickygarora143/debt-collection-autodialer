@@ -28,10 +28,12 @@ jobs:
       - name: Compile Release/Debug APK
         working-directory: ./android-app
         run: |
-          gradle assembleDebug --no-daemon
+          gradle assembleRelease assembleDebug --no-daemon
 
       - name: Upload Compiled APK
         uses: actions/upload-artifact@v4
         with:
           name: DebtFlow-AutoDialer-APK
-          path: android-app/app/build/outputs/apk/debug/*.apk
+          path: |
+            android-app/app/build/outputs/apk/release/*.apk
+            android-app/app/build/outputs/apk/debug/*.apk
