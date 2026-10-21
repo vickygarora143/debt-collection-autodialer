@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DebtFlow Pro — Collection Auto-Dialer & Super Admin HQ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS for Excel/CSV Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js for Recovery Visuals -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .tab-btn.active {
+            border-bottom: 3px solid #2563eb;
+            color: #1e40af;
+            font-weight: 700;
+        }
+        .pulse-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .4; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+                <i data-lucide="phone-call" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-emerald-400 bg-clip-text text-transparent">DebtFlow Pro</span>
+                    <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span> 100% Cloudflare Free Tier
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400">Enterprise Collection Auto-Dialer & Super Admin Governance</p>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="hidden md:flex space-x-1 border border-slate-800 bg-slate-950/60 p-1 rounded-xl text-sm font-medium">
+            <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-btn active px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-slate-800/60">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Recovery Scoreboard
+            </button>
+            <button onclick="switchTab('agents')" id="btn-tab-agents" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-slate-800/60">
+                <i data-lucide="shield-alert" class="w-4 h-4"></i> 50 Agents & Kill-Switch
+            </button>
+            <button onclick="switchTab('allocations')" id="btn-tab-allocations" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-slate-800/60">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload & Distribute
+            </button>
+            <button onclick="switchTab('simulator')" id="btn-tab-simulator" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-slate-800/60">
+                <i data-lucide="smartphone" class="w-4 h-4"></i> Telecaller APK Simulator
+            </button>
+            <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-slate-800/60">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Audit Reports
+            </button>
+        </nav>
+
+        <div class="flex items-center space-x-3">
+            <div class="text-right hidden sm:block">
+                <div class="text-xs font-semibold text-slate-200">Super Administrator</div>
+                <div class="text-[11px] text-emerald-400">Master Authority (Full Rights)</div>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-blue-400 font-bold text-sm">
+                SA
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: RECOVERY SCOREBOARD (DASHBOARD)     -->
+        <!-- ========================================== -->
+        <section id="section-dashboard" class="space-y-6">
+            <!-- Top Metric Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm hover:border-blue-500/50 transition">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+                        <span>Total Calls Today</span>
+                        <i data-lucide="phone-outgoing" class="w-4 h-4 text-blue-400"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-white" id="kpi-total-calls">0</div>
+                    <div class="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-medium">
+                        <i data-lucide="zap" class="w-3 h-3"></i> Auto-dialing active
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm hover:border-emerald-500/50 transition">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+                        <span>Connected Calls</span>
+                        <i data-lucide="phone-forwarded" class="w-4 h-4 text-emerald-400"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-white" id="kpi-connected-calls">0</div>
+                    <div class="text-[11px] text-slate-400 mt-1 font-medium">
+                        Connect Rate: <span class="text-emerald-400 font-bold" id="kpi-connect-rate">0%</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm hover:border-amber-500/50 transition">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+                        <span>Total PTP Promised</span>
+                        <i data-lucide="indian-rupee" class="w-4 h-4 text-amber-400"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-amber-400" id="kpi-ptp-amount">₹0</div>
+                    <div class="text-[11px] text-slate-400 mt-1 font-medium">
+                        Cases: <span class="text-amber-300 font-bold" id="kpi-ptp-cases">0 accounts</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm hover:border-indigo-500/50 transition">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+                        <span>Active Telecallers</span>
+                        <i data-lucide="users" class="w-4 h-4 text-indigo-400"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-white">
+                        <span id="kpi-online-agents">0</span> <span class="text-xs font-normal text-slate-400">/ 50 Max</span>
+                    </div>
+                    <div class="text-[11px] text-indigo-400 mt-1 font-medium flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> Heartbeat Verified
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm hover:border-rose-500/50 transition">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+                        <span>Kill-Switched Agents</span>
+                        <i data-lucide="lock" class="w-4 h-4 text-rose-400"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-rose-400" id="kpi-revoked-agents">0</div>
+                    <div class="text-[11px] text-slate-400 mt-1 font-medium">
+                        Device access disabled
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visual Charts & Telecaller Leaderboard -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Disposition Distribution -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+                    <h3 class="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="w-4 h-4 text-blue-400"></i> Call Disposition Breakdown
+                    </h3>
+                    <div class="flex-1 flex items-center justify-center relative min-h-[220px]">
+                        <canvas id="dispositionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Live Agent Leaderboard -->
+                <div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i> Today's Top Recovery Telecallers
+                        </h3>
+                        <span class="text-xs text-slate-400">Refreshes every 30s</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="text-slate-400 border-b border-slate-800 bg-slate-950/40">
+                                <tr>
+                                    <th class="py-2.5 px-3">Agent</th>
+                                    <th class="py-2.5 px-3">Dials Today</th>
+                                    <th class="py-2.5 px-3">PTP Count</th>
+                                    <th class="py-2.5 px-3">Promised Amount</th>
+                                    <th class="py-2.5 px-3">Talk Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-table-body" class="divide-y divide-slate-800/60 font-medium">
+                                <tr><td colspan="5" class="py-4 text-center text-slate-500">Loading live telecaller stats...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: AGENT MANAGEMENT & KILL-SWITCH HQ  -->
+        <!-- ========================================== -->
+        <section id="section-agents" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-blue-400"></i> Telecaller Provisioning & Device Kill-Switch
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Super Admin controls APK access. Terminated agents cannot open the app or leak debtor contacts.</p>
+                </div>
+                <button onclick="openCreateAgentModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Create New Agent ID
+                </button>
+            </div>
+
+            <!-- Agents Grid / Table -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="text-xs font-semibold text-slate-300">Registered Telecallers (50 Allocation Slots)</div>
+                    <div class="relative w-64">
+                        <input type="text" id="agent-search" placeholder="Search Agent ID or Name..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="text-slate-400 border-b border-slate-800 bg-slate-950/50">
+                            <tr>
+                                <th class="py-3 px-4">Agent ID</th>
+                                <th class="py-3 px-4">Full Name & Phone</th>
+                                <th class="py-3 px-4">Hardware UUID (Phone Lock)</th>
+                                <th class="py-3 px-4">Cases</th>
+                                <th class="py-3 px-4">Dials Today</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Super Admin Control</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agents-table-body" class="divide-y divide-slate-800/80 font-medium">
+                            <tr><td colspan="7" class="py-6 text-center text-slate-500">Loading agent credentials...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: ALLOCATION UPLOAD & DISTRIBUTION    -->
+        <!-- ========================================== -->
+        <section id="section-allocations" class="hidden space-y-6">
+            <div class="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                    <i data-lucide="upload-cloud" class="w-5 h-5 text-indigo-400"></i> Upload Portfolio Allocation (Excel / CSV)
+                </h2>
+                <p class="text-xs text-slate-400 mb-6">Upload customer cases from banks/NBFCs. The engine automatically cleans 10-digit phone numbers and distributes cases across your 50 telecallers.</p>
+
+                <!-- Drag & Drop Box -->
+                <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-2xl p-8 text-center cursor-pointer bg-slate-950/40 transition">
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
+                    <div class="w-14 h-14 mx-auto rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mb-3">
+                        <i data-lucide="file-up" class="w-7 h-7"></i>
+                    </div>
+                    <div class="text-sm font-bold text-slate-200">Click to browse or drag & drop allocation file</div>
+                    <p class="text-xs text-slate-400 mt-1">Supports standard Excel (.xlsx, .xls) and CSV</p>
+                    <div class="text-[11px] text-slate-500 mt-3">Expected columns: Customer Name, Loan ID, Phone, Alt Phone, Overdue Amount, DPD, Bucket</div>
+                </div>
+
+                <!-- Ingestion Settings Form (Hidden until file selected) -->
+                <div id="upload-settings" class="hidden mt-6 space-y-4 border-t border-slate-800 pt-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Batch Identifier</label>
+                            <input type="text" id="batch-name" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Distribution Strategy</label>
+                            <select id="distribution-strategy" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                                <option value="ROUND_ROBIN">Equal Split (Round-Robin across 50 active agents)</option>
+                                <option value="SPECIFIC">Assign entire batch to one agent</option>
+                            </select>
+                        </div>
+                        <div id="specific-agent-wrapper" class="hidden">
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Target Agent</label>
+                            <select id="target-agent-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"></select>
+                        </div>
+                    </div>
+
+                    <!-- File Preview Card -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i> File Validated
+                            </div>
+                            <div class="text-xs text-slate-300 mt-1">
+                                Detected: <span id="preview-row-count" class="font-extrabold text-white">0</span> cases ready for auto-dialing.
+                            </div>
+                        </div>
+                        <button onclick="submitAllocationUpload()" id="btn-push-allocation" class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center gap-2">
+                            <i data-lucide="send" class="w-4 h-4"></i> Push to Agent Android Phones
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 4: TELECALLER SIMULATOR (PWA PREVIEW)  -->
+        <!-- ========================================== -->
+        <section id="section-simulator" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <!-- Info Left Column -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <i data-lucide="smartphone" class="w-5 h-5 text-blue-400"></i> Android APK Telecaller UX
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                            This simulator previews the exact ergonomic workflow running inside the Android APK for your 50 agents:
+                        </p>
+                        <ul class="text-xs text-slate-300 mt-3 space-y-2">
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Zero manual typing: Auto-dials via native SIM
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Headset & Earphone active listening
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Instant 1-tap recovery disposition tags
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> 3-second auto-advance to next debtor
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="lock" class="w-4 h-4 text-rose-400"></i> Screenshot blocked via <code class="bg-slate-950 px-1 py-0.5 rounded text-rose-300">FLAG_SECURE</code>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-blue-950/30 border border-blue-900/50 p-4 rounded-xl text-xs text-blue-300">
+                        <div class="font-bold flex items-center gap-1.5 mb-1">
+                            <i data-lucide="info" class="w-4 h-4"></i> GitHub Actions Free APK Builder
+                        </div>
+                        When pushed to your GitHub repository, the attached GitHub Actions workflow builds the signed Android APK automatically at zero cost.
+                    </div>
+                </div>
+
+                <!-- Mobile Phone Frame Preview -->
+                <div class="lg:col-span-7 flex justify-center">
+                    <div class="w-full max-w-sm bg-slate-900 rounded-[3rem] p-3 border-4 border-slate-700 shadow-2xl relative">
+                        <!-- Phone Notch / Earpiece -->
+                        <div class="absolute top-5 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-800 rounded-full flex items-center justify-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-slate-950"></div>
+                            <div class="w-8 h-1 bg-slate-700 rounded-full"></div>
+                        </div>
+
+                        <!-- Phone Screen -->
+                        <div class="bg-slate-950 rounded-[2.5rem] pt-8 pb-5 px-4 h-[620px] flex flex-col justify-between overflow-hidden border border-slate-800 text-slate-100">
+                            <!-- Mobile Header -->
+                            <div class="border-b border-slate-800 pb-3">
+                                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                    <span class="font-bold text-white flex items-center gap-1">
+                                        <i data-lucide="radio" class="w-3 h-3 text-emerald-400"></i> SIM 1 (Airtel CUG)
+                                    </span>
+                                    <span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full font-bold" id="sim-agent-badge">AGT001</span>
+                                </div>
+                                <div class="flex items-center justify-between mt-2">
+                                    <div class="text-xs font-bold text-slate-200">Queue: #<span id="sim-case-index">1</span> of <span id="sim-case-total">240</span></div>
+                                    <!-- Audio Toggle -->
+                                    <button onclick="toggleSimAudio()" id="sim-audio-btn" class="px-2.5 py-1 bg-slate-800 rounded-lg text-[10px] font-bold text-emerald-400 flex items-center gap-1 border border-slate-700">
+                                        <i data-lucide="headphones" class="w-3.5 h-3.5"></i> Earphone
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Debtor Case Card -->
+                            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 my-auto space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="px-2 py-0.5 text-[10px] font-extrabold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30" id="sim-case-bucket">BUCKET 2</span>
+                                    <span class="text-[11px] text-rose-400 font-extrabold" id="sim-case-dpd">DPD: 64 Days</span>
+                                </div>
+
+                                <div>
+                                    <div class="text-base font-extrabold text-white" id="sim-case-name">Rajesh Kumar Sharma</div>
+                                    <div class="text-xs text-slate-400" id="sim-case-loan">Loan Acc: PL-98241029</div>
+                                </div>
+
+                                <div class="bg-slate-950 p-2.5 rounded-xl flex items-center justify-between border border-slate-800/80">
+                                    <div>
+                                        <div class="text-[10px] text-slate-500 uppercase font-bold">Total Overdue</div>
+                                        <div class="text-lg font-black text-amber-400" id="sim-case-amount">₹ 28,450</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-[10px] text-slate-500 uppercase font-bold">Phone</div>
+                                        <div class="text-xs font-mono font-bold text-blue-400" id="sim-case-phone">+91 98765 43210</div>
+                                    </div>
+                                </div>
+
+                                <!-- Call Progress / Live Timer -->
+                                <div id="sim-call-status-box" class="py-2 px-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-2 text-blue-400 font-bold">
+                                        <span class="w-2 h-2 rounded-full bg-blue-400 pulse-dot"></span>
+                                        <span id="sim-call-status-text">Ready to Dial</span>
+                                    </div>
+                                    <div class="font-mono text-slate-300 font-bold" id="sim-call-timer">00:00</div>
+                                </div>
+                            </div>
+
+                            <!-- 1-Tap Recovery Dispositions (Appear on Call End) -->
+                            <div class="space-y-2">
+                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Tap 1-Touch Disposition</div>
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <button onclick="logSimCall('PTP')" class="py-2 px-1 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 rounded-xl text-[11px] font-bold text-emerald-300 text-center">
+                                        PTP
+                                    </button>
+                                    <button onclick="logSimCall('BROKEN_PTP')" class="py-2 px-1 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/40 rounded-xl text-[11px] font-bold text-amber-300 text-center">
+                                        Broken PTP
+                                    </button>
+                                    <button onclick="logSimCall('PAID_ONLINE')" class="py-2 px-1 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 rounded-xl text-[11px] font-bold text-blue-300 text-center">
+                                        Paid
+                                    </button>
+                                    <button onclick="logSimCall('RNR')" class="py-2 px-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-[11px] font-bold text-slate-300 text-center">
+                                        RNR
+                                    </button>
+                                    <button onclick="logSimCall('BUSY')" class="py-2 px-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-[11px] font-bold text-slate-300 text-center">
+                                        Busy / Off
+                                    </button>
+                                    <button onclick="logSimCall('WRONG_NUMBER')" class="py-2 px-1 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 rounded-xl text-[11px] font-bold text-rose-300 text-center">
+                                        Wrong #
+                                    </button>
+                                </div>
+
+                                <!-- Dial / Pause Controls -->
+                                <div class="flex items-center gap-2 pt-2">
+                                    <button onclick="triggerSimDial()" id="sim-dial-btn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5">
+                                        <i data-lucide="phone" class="w-4 h-4"></i> Start Auto-Dialing
+                                    </button>
+                                    <button onclick="toggleSimPause()" id="sim-pause-btn" class="px-3 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700">
+                                        <i data-lucide="pause" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 5: AUDIT REPORTS & BANK EXPORT         -->
+        <!-- ========================================== -->
+        <section id="section-reports" class="hidden space-y-6">
+            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-400"></i> Audited Call Reports (Bank / NBFC Format)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Export full call history with timestamps, durations, and recovery dispositions.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <input type="date" id="report-date" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                    <button onclick="downloadCsvReport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition">
+                        <i data-lucide="download" class="w-4 h-4"></i> Export to Excel / CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Report Table -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="text-slate-400 border-b border-slate-800 bg-slate-950/60">
+                            <tr>
+                                <th class="py-3 px-4">Timestamp</th>
+                                <th class="py-3 px-4">Agent ID</th>
+                                <th class="py-3 px-4">Loan Account</th>
+                                <th class="py-3 px-4">Customer</th>
+                                <th class="py-3 px-4">Dialed Phone</th>
+                                <th class="py-3 px-4">Duration</th>
+                                <th class="py-3 px-4">Disposition</th>
+                                <th class="py-3 px-4">PTP Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body" class="divide-y divide-slate-800/80 font-medium">
+                            <tr><td colspan="8" class="py-6 text-center text-slate-500">Loading call history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Create Agent Modal -->
+    <div id="create-agent-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-blue-400"></i> Provision Telecaller ID
+                </h3>
+                <button onclick="closeCreateAgentModal()" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="create-agent-form" onsubmit="handleCreateAgent(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Agent ID Code</label>
+                    <input type="text" id="new-agent-code" placeholder="e.g. AGT005" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 uppercase focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
+                    <input type="text" id="new-agent-name" placeholder="e.g. Vikas Verma" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Phone Number (Calling SIM)</label>
+                    <input type="tel" id="new-agent-phone" placeholder="e.g. 9812345678" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Login Password / Token</label>
+                    <input type="password" id="new-agent-password" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="p-3 bg-blue-950/30 rounded-xl border border-blue-900/40 text-[11px] text-blue-300">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 inline mr-1"></i> First-time login automatically binds this account to the agent's Android phone hardware UUID.
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeCreateAgentModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30">Create Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Client Script Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

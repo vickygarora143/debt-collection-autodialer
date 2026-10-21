@@ -1,0 +1,12 @@
+{
+  "name": "debtflow-admin-portal",
+  "version": "1.0.0",
+  "description": "Debt Collection Auto-Dialer Super Admin HQ & Cloudflare Free Tier Backend",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}

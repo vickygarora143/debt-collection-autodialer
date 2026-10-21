@@ -1,0 +1,39 @@
+name: Build Android Auto-Dialer APK (Free CI/CD)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x android-app/gradlew || true
+
+      - name: Build Android APK
+        working-directory: ./android-app
+        run: |
+          gradle wrapper
+          ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DebtFlow-AutoDialer-APK
+          path: android-app/app/build/outputs/apk/debug/app-debug.apk

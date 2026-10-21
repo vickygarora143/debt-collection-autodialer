@@ -1,0 +1,105 @@
+package com.collection.autodialer
+
+import android.content.Context
+import android.content.Intent
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.net.Uri
+import android.os.Build
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
+
+class TelephonyService(private val context: Context, private val listener: CallStateEventListener) {
+
+    private val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    private var isCallActive = false
+    private var callStartTime: Long = 0
+
+    interface CallStateEventListener {
+        fun onCallConnected()
+        fun onCallDisconnected(durationSeconds: Int)
+    }
+
+    enum class AudioMode {
+        HEADSET, SPEAKER, EARPIECE
+    }
+
+    init {
+        registerCallStateListener()
+    }
+
+    // 1. Direct Cellular SIM Calling
+    fun placeCall(phoneNumber: String) {
+        val cleanNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
+        val callIntent = Intent(Intent.ACTION_CALL).apply {
+            data = Uri.parse("tel:$cleanNumber")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(callIntent)
+    }
+
+    // 2. Audio Output Routing (Headset / Speaker / Handset)
+    fun setAudioOutput(mode: AudioMode) {
+        when (mode) {
+            AudioMode.SPEAKER -> {
+                audioManager.mode = AudioManager.MODE_IN_CALL
+                audioManager.isSpeakerphoneOn = true
+            }
+            AudioMode.HEADSET -> {
+                audioManager.isSpeakerphoneOn = false
+                audioManager.mode = AudioManager.MODE_IN_CALL
+            }
+            AudioMode.EARPIECE -> {
+                audioManager.isSpeakerphoneOn = false
+                audioManager.mode = AudioManager.MODE_IN_CALL
+            }
+        }
+    }
+
+    // 3. Telephony State Monitoring across Android versions
+    private fun registerCallStateListener() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            telephonyManager.registerTelephonyCallback(
+                context.mainExecutor,
+                object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                    override fun onCallStateChanged(state: Int) {
+                        handleStateChange(state)
+                    }
+                }
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            telephonyManager.listen(object : PhoneStateListener() {
+                @Deprecated("Deprecated in Java")
+                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                    handleStateChange(state)
+                }
+            }, PhoneStateListener.LISTEN_CALL_STATE)
+        }
+    }
+
+    private fun handleStateChange(state: Int) {
+        when (state) {
+            TelephonyManager.CALL_STATE_OFFHOOK -> {
+                // Call started / answered
+                isCallActive = true
+                callStartTime = System.currentTimeMillis()
+                listener.onCallConnected()
+            }
+            TelephonyManager.CALL_STATE_IDLE -> {
+                // Call ended or rejected
+                if (isCallActive) {
+                    isCallActive = false
+                    val duration = ((System.currentTimeMillis() - callStartTime) / 1000).toInt()
+                    listener.onCallDisconnected(if (duration > 0) duration else 0)
+                }
+            }
+            TelephonyManager.CALL_STATE_RINGING -> {
+                // Outbound or inbound ringing
+            }
+        }
+    }
+}
