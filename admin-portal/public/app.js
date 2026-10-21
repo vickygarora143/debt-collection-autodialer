@@ -87,7 +87,15 @@ async function handleUserLogin(e) {
             body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        const rawText = await res.text();
+        let data = {};
+        try {
+            data = JSON.parse(rawText);
+        } catch (parseErr) {
+            alert('Server error: ' + (rawText || 'Invalid response from server'));
+            return;
+        }
+
         if (data.error) {
             alert('Authentication Failed: ' + data.error);
             return;

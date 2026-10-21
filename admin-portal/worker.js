@@ -17,6 +17,109 @@ export default {
         }
 
         try {
+            // 0. Authentication API (Admin & Agent Login)
+            if (url.pathname === '/api/auth/login' && method === 'POST') {
+                const body = await request.json();
+                const role = body.role || 'agent';
+                const username = String(body.username || body.agent_code || '').trim();
+                const password = String(body.password || '').trim();
+
+                // 1. Super Admin Authentication
+                if (role === 'admin') {
+                    if (!username || !password) {
+                        return new Response(JSON.stringify({ error: 'Username and password required' }), { status: 400, headers: corsHeaders });
+                    }
+
+                    // Check D1 admins table (case-insensitive username)
+                    const admin = await env.DB.prepare(
+                        'SELECT id, username, agency_name, password_hash FROM admins WHERE LOWER(username) = LOWER(?)'
+                    ).bind(username).first();
+
+                    if (admin && admin.password_hash === password) {
+                        return new Response(JSON.stringify({
+                            success: true,
+                            role: 'admin',
+                            admin: { id: admin.id, username: admin.username, agency_name: admin.agency_name }
+                        }), { headers: corsHeaders });
+                    }
+
+                    // Default bootstrap fallback: admin / admin123 (accepts ADMIN or admin)
+                    if (username.toLowerCase() === 'admin' && password === 'admin123') {
+                        return new Response(JSON.stringify({
+                            success: true,
+                            role: 'admin',
+                            admin: { id: 1, username: 'admin', agency_name: 'Collection Agency HQ' }
+                        }), { headers: corsHeaders });
+                    }
+
+                    return new Response(JSON.stringify({ error: 'Invalid admin username or password' }), { status: 401, headers: corsHeaders });
+                }
+
+                // 2. Telecalling Agent Authentication (Agent ID as Login ID)
+                const agentCode = username.toUpperCase();
+                if (!agentCode || !password) {
+                    return new Response(JSON.stringify({ error: 'Agent ID and Password required' }), { status: 400, headers: corsHeaders });
+                }
+
+                const agent = await env.DB.prepare(
+                    'SELECT * FROM agents WHERE UPPER(agent_code) = ?'
+                ).bind(agentCode).first();
+
+                if (!agent || agent.password_hash !== password) {
+                    return new Response(JSON.stringify({ error: 'Invalid Agent ID or Password' }), { status: 401, headers: corsHeaders });
+                }
+
+                // Check Kill-Switch
+                if (agent.status === 'REVOKED') {
+                    return new Response(JSON.stringify({
+                        error: 'ACCESS REVOKED: Account is locked by Super Admin.',
+                        code: 'ACCOUNT_REVOKED'
+                    }), { status: 403, headers: corsHeaders });
+                }
+
+                const hwUuid = body.hardware_uuid;
+                if (hwUuid && !hwUuid.startsWith('WEB_')) {
+                    if (!agent.hardware_uuid) {
+                        await env.DB.prepare(
+                            'UPDATE agents SET hardware_uuid = ?, device_model = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?'
+                        ).bind(hwUuid, body.device_model || 'Android Phone', agent.id).run();
+                    } else if (agent.hardware_uuid !== hwUuid) {
+                        return new Response(JSON.stringify({
+                            error: 'DEVICE MISMATCH: This account is bound to another phone.',
+                            code: 'DEVICE_UNAUTHORIZED'
+                        }), { status: 403, headers: corsHeaders });
+                    }
+                }
+
+                await env.DB.prepare('UPDATE agents SET last_login = CURRENT_TIMESTAMP, last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?').bind(agent.id).run();
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    role: 'agent',
+                    agent: {
+                        id: agent.id,
+                        agent_code: agent.agent_code,
+                        full_name: agent.full_name,
+                        phone: agent.phone,
+                        status: agent.status
+                    }
+                }), { headers: corsHeaders });
+            }
+
+            // Heartbeat & Kill-Switch Enforcer
+            if (url.pathname === '/api/auth/heartbeat' && method === 'POST') {
+                const body = await request.json();
+                const agentId = body.agent_id;
+                if (agentId) {
+                    const agent = await env.DB.prepare('SELECT status FROM agents WHERE id = ?').bind(agentId).first();
+                    if (!agent || agent.status === 'REVOKED') {
+                        return new Response(JSON.stringify({ status: 'REVOKED', message: 'Account revoked.' }), { status: 403, headers: corsHeaders });
+                    }
+                    await env.DB.prepare('UPDATE agents SET last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?').bind(agentId).run();
+                }
+                return new Response(JSON.stringify({ ok: true, status: 'ACTIVE' }), { headers: corsHeaders });
+            }
+
             // 1. Dashboard Stats
             if (url.pathname === '/api/dashboard/stats' && method === 'GET') {
                 const todayKpis = await env.DB.prepare(

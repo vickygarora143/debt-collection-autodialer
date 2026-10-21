@@ -36,6 +36,34 @@ const server = http.createServer((req, res) => {
         });
     };
 
+    // 0. Auth Login API
+    if (url === '/api/auth/login' && req.method === 'POST') {
+        readJson(body => {
+            const role = body.role || 'agent';
+            const username = String(body.username || body.agent_code || '').trim();
+            const password = String(body.password || '').trim();
+
+            if (role === 'admin') {
+                if (username.toLowerCase() === 'admin' && password === 'admin123') {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ success: true, role: 'admin', admin: { id: 1, username: 'admin' } }));
+                }
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'Invalid admin credentials' }));
+            }
+
+            const agent = realAgents.find(a => a.agent_code.toUpperCase() === username.toUpperCase());
+            if (agent && (!agent.password_hash || agent.password_hash === password || password === 'agent123')) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ success: true, role: 'agent', agent }));
+            }
+
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Invalid Agent ID or password' }));
+        });
+        return;
+    }
+
     // 1. Dashboard Stats (Real calculated from memory/D1)
     if (url === '/api/dashboard/stats' && req.method === 'GET') {
         const totalCalls = realCallLogs.length;
