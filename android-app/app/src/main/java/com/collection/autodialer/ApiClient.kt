@@ -8,9 +8,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object ApiClient {
-    // Replace with your Cloudflare Pages URL after deployment
-    // e.g. "https://debtflow-dialer.pages.dev"
-    var BASE_URL = "https://your-cloudflare-pages-domain.pages.dev"
+    // Live Cloudflare 100% Free Tier Serverless API
+    var BASE_URL = "https://debtflow-dialer-pro.vickygarora143.workers.dev"
 
     fun post(endpoint: String, payload: JSONObject): Result<JSONObject> {
         return try {

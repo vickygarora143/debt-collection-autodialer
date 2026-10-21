@@ -1,4 +1,4 @@
-// DebtFlow Pro — Super Admin Client Logic & Telecaller Engine
+// DebtFlow Pro — Production Client Engine (100% Real Cloudflare D1 Sync)
 
 let dispositionChart = null;
 let currentUploadedCases = [];
@@ -6,17 +6,10 @@ let simInterval = null;
 let simTimerSeconds = 0;
 let isSimCalling = false;
 let isSimPaused = false;
+let activeCasesQueue = [];
 let currentSimCaseIndex = 0;
 let simAudioMode = 'HEADSET'; // HEADSET | SPEAKER | EARPIECE
-
-// Mock Cases for Simulator
-const sampleSimulatorCases = [
-    { name: "Rajesh Kumar Sharma", loan: "PL-98241029", phone: "9876543210", amount: 28450, dpd: 64, bucket: "BUCKET 2" },
-    { name: "Sunil Anand Patil", loan: "HL-44120931", phone: "9823019283", amount: 64120, dpd: 88, bucket: "BUCKET 3" },
-    { name: "Pooja Ramesh Mehra", loan: "CC-11928341", phone: "9711823901", amount: 14200, dpd: 32, bucket: "BUCKET 1" },
-    { name: "Deepak Satish Rao", loan: "AL-55102938", phone: "9940182736", amount: 48900, dpd: 71, bucket: "BUCKET 3" },
-    { name: "Meena Gurpreet Singh", loan: "PL-88201947", phone: "9818273645", amount: 21300, dpd: 45, bucket: "BUCKET 2" }
-];
+let allAgentsCache = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
@@ -25,15 +18,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAgents();
     loadReports();
     initDropZone();
-    renderSimulatorCase();
 
-    // Auto-refresh stats every 30 seconds
+    // Auto-refresh real-time stats every 20 seconds
     setInterval(() => {
         loadDashboardStats();
-    }, 30000);
+    }, 20000);
 });
 
-// Tab Navigation
+// Smooth Tab Navigation
 function switchTab(tabId) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.getElementById(`btn-tab-${tabId}`);
@@ -55,17 +47,19 @@ function switchTab(tabId) {
 
     if (tabId === 'agents') loadAgents();
     if (tabId === 'dashboard') loadDashboardStats();
+    if (tabId === 'simulator') loadSimulatorQueue();
+    if (tabId === 'reports') loadReports();
 }
 
 // ----------------------------------------------------
-// 1. DASHBOARD & RECOVERY SCOREBOARD
+// 1. DASHBOARD & RECOVERY SCOREBOARD (REAL D1 DATA)
 // ----------------------------------------------------
 async function loadDashboardStats() {
     try {
         const res = await fetch('/api/dashboard/stats');
         const data = await res.json();
 
-        // Update KPIs
+        // Update real KPIs from D1 database
         const kpis = data.kpis || {};
         document.getElementById('kpi-total-calls').innerText = (kpis.total_calls_today || 0).toLocaleString();
         document.getElementById('kpi-connected-calls').innerText = (kpis.connected_calls || 0).toLocaleString();
@@ -81,7 +75,7 @@ async function loadDashboardStats() {
         // Render Leaderboard
         renderLeaderboard(data.leaderboard || []);
     } catch (err) {
-        console.warn('Dashboard stats fallback:', err);
+        console.error('Error loading dashboard stats:', err);
     }
 }
 
@@ -89,20 +83,24 @@ function renderDispositionChart(dispositions) {
     const ctx = document.getElementById('dispositionChart');
     if (!ctx) return;
 
-    const labels = dispositions.map(d => d.disposition);
-    const counts = dispositions.map(d => d.count);
-    const colors = ['#10b981', '#f59e0b', '#3b82f6', '#64748b', '#ef4444', '#8b5cf6', '#ec4899'];
+    const hasData = dispositions && dispositions.length > 0;
+    const labels = hasData ? dispositions.map(d => d.disposition) : ['No Calls Yet'];
+    const counts = hasData ? dispositions.map(d => d.count) : [1];
+    const colors = hasData 
+        ? ['#10b981', '#f59e0b', '#2563eb', '#64748b', '#ef4444', '#8b5cf6', '#ec4899']
+        : ['#e2e8f0'];
 
     if (dispositionChart) dispositionChart.destroy();
 
     dispositionChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: labels.length ? labels : ['No Data'],
+            labels: labels,
             datasets: [{
-                data: counts.length ? counts : [1],
-                backgroundColor: labels.length ? colors.slice(0, labels.length) : ['#334155'],
-                borderWidth: 0
+                data: counts,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#ffffff'
             }]
         },
         options: {
@@ -111,10 +109,10 @@ function renderDispositionChart(dispositions) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { color: '#94a3b8', font: { size: 10 } }
+                    labels: { color: '#475569', font: { size: 11, family: 'Inter' }, padding: 12 }
                 }
             },
-            cutout: '70%'
+            cutout: '72%'
         }
     });
 }
@@ -124,7 +122,7 @@ function renderLeaderboard(leaderboard) {
     if (!tbody) return;
 
     if (!leaderboard || leaderboard.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-500">No telecaller calls recorded yet today.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-medium">No calls recorded today. Start dialing or assign cases to see live telecaller recovery ranks.</td></tr>`;
         return;
     }
 
@@ -132,31 +130,32 @@ function renderLeaderboard(leaderboard) {
         const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
         const talkMins = Math.round((row.total_talk_seconds || 0) / 60);
         return `
-            <tr class="hover:bg-slate-800/40">
+            <tr class="hover:bg-slate-50 transition">
                 <td class="py-2.5 px-3">
                     <span class="mr-1.5 font-bold">${medal}</span>
-                    <span class="font-bold text-white">${row.agent_code}</span> 
-                    <span class="text-slate-400">(${row.full_name})</span>
+                    <span class="font-bold text-slate-900">${row.agent_code}</span> 
+                    <span class="text-slate-500">(${row.full_name})</span>
                 </td>
-                <td class="py-2.5 px-3 font-mono font-bold text-blue-400">${row.calls_made}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-emerald-400">${row.ptp_count}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-amber-400">₹${(row.ptp_value || 0).toLocaleString()}</td>
-                <td class="py-2.5 px-3 text-slate-300 font-mono">${talkMins}m</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-blue-700">${row.calls_made}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-emerald-700">${row.ptp_count}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-amber-600">₹${(row.ptp_value || 0).toLocaleString()}</td>
+                <td class="py-2.5 px-3 text-slate-600 font-mono">${talkMins}m</td>
             </tr>
         `;
     }).join('');
 }
 
 // ----------------------------------------------------
-// 2. AGENTS & KILL-SWITCH HQ
+// 2. AGENTS & KILL-SWITCH HQ (REAL D1 DATABASE)
 // ----------------------------------------------------
 async function loadAgents() {
     try {
         const res = await fetch('/api/agents');
         const data = await res.json();
         const agents = data.agents || [];
+        allAgentsCache = agents;
 
-        // Update target agent dropdown in Allocations tab
+        // Populate target agent dropdown in Allocations tab
         const targetSelect = document.getElementById('target-agent-select');
         if (targetSelect) {
             targetSelect.innerHTML = agents
@@ -165,50 +164,68 @@ async function loadAgents() {
                 .join('');
         }
 
-        const tbody = document.getElementById('agents-table-body');
-        if (!tbody) return;
-
-        if (agents.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">No telecallers provisioned yet. Click '+ Create New Agent ID' to add up to 50 callers.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = agents.map(a => {
-            const isRevoked = a.status === 'REVOKED';
-            const statusBadge = isRevoked 
-                ? `<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold">REVOKED (LOCKED)</span>`
-                : `<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">ACTIVE</span>`;
-
-            const deviceText = a.hardware_uuid 
-                ? `<div class="font-mono text-[11px] text-blue-300 flex items-center gap-1"><i data-lucide="smartphone" class="w-3 h-3 text-blue-400"></i> ${a.device_model || 'Bound Device'} <span class="text-[9px] text-slate-500">(${a.hardware_uuid.slice(0, 8)}...)</span></div>`
-                : `<span class="text-slate-500 text-[11px] italic">Not Bound (Waiting 1st Login)</span>`;
-
-            return `
-                <tr class="hover:bg-slate-800/40">
-                    <td class="py-3 px-4 font-bold text-white font-mono">${a.agent_code}</td>
-                    <td class="py-3 px-4">
-                        <div class="text-slate-200 font-semibold">${a.full_name}</div>
-                        <div class="text-[11px] text-slate-400 font-mono">${a.phone}</div>
-                    </td>
-                    <td class="py-3 px-4">${deviceText}</td>
-                    <td class="py-3 px-4 font-mono font-bold text-slate-300">${a.assigned_cases || 0}</td>
-                    <td class="py-3 px-4 font-mono font-bold text-emerald-400">${a.calls_today || 0}</td>
-                    <td class="py-3 px-4">${statusBadge}</td>
-                    <td class="py-3 px-4 text-right space-x-1.5">
-                        ${isRevoked 
-                            ? `<button onclick="toggleKillSwitch(${a.id}, 'ACTIVATE')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold transition">Restore</button>`
-                            : `<button onclick="toggleKillSwitch(${a.id}, 'REVOKE')" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-bold transition shadow-sm shadow-rose-600/30">Kill-Switch</button>`
-                        }
-                        ${a.hardware_uuid ? `<button onclick="resetDevice(${a.id})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-semibold border border-slate-700" title="Clear Phone Lock">Reset Lock</button>` : ''}
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-        lucide.createIcons();
+        renderAgentsTable(agents);
     } catch (err) {
-        console.error('Error loading agents:', err);
+        console.error('Error loading agents from D1:', err);
     }
+}
+
+function filterAgentsList() {
+    const query = (document.getElementById('agent-search')?.value || '').toLowerCase().trim();
+    if (!query) {
+        renderAgentsTable(allAgentsCache);
+        return;
+    }
+    const filtered = allAgentsCache.filter(a => 
+        (a.agent_code || '').toLowerCase().includes(query) || 
+        (a.full_name || '').toLowerCase().includes(query) ||
+        (a.phone || '').includes(query)
+    );
+    renderAgentsTable(filtered);
+}
+
+function renderAgentsTable(agents) {
+    const tbody = document.getElementById('agents-table-body');
+    if (!tbody) return;
+
+    if (!agents || agents.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 font-medium">No agents found in Cloudflare D1. Click '+ Create New Agent ID' to provision telecallers.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = agents.map(a => {
+        const isRevoked = a.status === 'REVOKED';
+        const statusBadge = isRevoked 
+            ? `<span class="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">REVOKED (LOCKED)</span>`
+            : `<span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">ACTIVE</span>`;
+
+        const deviceText = a.hardware_uuid 
+            ? `<div class="font-mono text-[11px] text-slate-700 flex items-center gap-1"><i data-lucide="smartphone" class="w-3.5 h-3.5 text-blue-600"></i> ${a.device_model || 'Bound Device'} <span class="text-[10px] text-slate-400">(${a.hardware_uuid.slice(0, 8)}...)</span></div>`
+            : `<span class="text-slate-400 text-[11px] italic">Not Bound (Waiting 1st Login)</span>`;
+
+        return `
+            <tr class="hover:bg-slate-50 transition">
+                <td class="py-3 px-4 font-bold text-slate-900 font-mono">${a.agent_code}</td>
+                <td class="py-3 px-4">
+                    <div class="text-slate-900 font-semibold">${a.full_name}</div>
+                    <div class="text-[11px] text-slate-500 font-mono">${a.phone}</div>
+                </td>
+                <td class="py-3 px-4">${deviceText}</td>
+                <td class="py-3 px-4 font-mono font-bold text-slate-700">${a.assigned_cases || 0}</td>
+                <td class="py-3 px-4 font-mono font-bold text-emerald-700">${a.calls_today || 0}</td>
+                <td class="py-3 px-4">${statusBadge}</td>
+                <td class="py-3 px-4 text-right space-x-1.5">
+                    ${isRevoked 
+                        ? `<button onclick="toggleKillSwitch(${a.id}, 'ACTIVATE')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Restore Access</button>`
+                        : `<button onclick="toggleKillSwitch(${a.id}, 'REVOKE')" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Kill-Switch</button>`
+                    }
+                    ${a.hardware_uuid ? `<button onclick="resetDevice(${a.id})" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Clear Phone Lock">Reset Lock</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    lucide.createIcons();
 }
 
 async function toggleKillSwitch(agentId, action) {
@@ -225,7 +242,7 @@ async function toggleKillSwitch(agentId, action) {
             body: JSON.stringify({ action })
         });
         const data = await res.json();
-        alert(data.message || 'Kill-switch status updated.');
+        alert(data.message || 'Kill-switch status updated in Cloudflare D1.');
         loadAgents();
         loadDashboardStats();
     } catch (err) {
@@ -271,7 +288,7 @@ async function handleCreateAgent(e) {
             alert('Error: ' + data.error);
             return;
         }
-        alert(data.message || 'Agent provisioned successfully!');
+        alert(data.message || 'Agent provisioned successfully in D1 database!');
         closeCreateAgentModal();
         document.getElementById('create-agent-form').reset();
         loadAgents();
@@ -282,7 +299,7 @@ async function handleCreateAgent(e) {
 }
 
 // ----------------------------------------------------
-// 3. ALLOCATION INGESTION & DISTRIBUTION
+// 3. ALLOCATION INGESTION & DISTRIBUTION (REAL EXCEL)
 // ----------------------------------------------------
 function initDropZone() {
     const dropZone = document.getElementById('drop-zone');
@@ -294,12 +311,14 @@ function initDropZone() {
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('border-blue-500');
+        dropZone.classList.add('border-blue-500', 'bg-blue-50/50');
     });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50/50');
+    });
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('border-blue-500');
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50/50');
         if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
     });
 
@@ -330,6 +349,7 @@ function handleFileSelect(file) {
         document.getElementById('preview-row-count').innerText = json.length.toLocaleString();
         document.getElementById('batch-name').value = file.name.replace(/\.[^/.]+$/, "") + `_${Date.now().toString().slice(-4)}`;
         document.getElementById('upload-settings').classList.remove('hidden');
+        lucide.createIcons();
     };
     reader.readAsArrayBuffer(file);
 }
@@ -346,7 +366,7 @@ async function submitAllocationUpload() {
 
     const btn = document.getElementById('btn-push-allocation');
     btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Distributing to 50 Agents...`;
+    btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Writing cases to Cloudflare D1...`;
     lucide.createIcons();
 
     try {
@@ -371,31 +391,73 @@ async function submitAllocationUpload() {
             currentUploadedCases = [];
             loadAgents();
             loadDashboardStats();
+            loadSimulatorQueue();
         }
     } catch (err) {
         alert('Failed to upload allocation: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Push to Agent Android Phones`;
+        btn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Upload & Assign in Cloudflare D1`;
         lucide.createIcons();
     }
 }
 
 // ----------------------------------------------------
-// 4. TELECALLER SIMULATOR (APK PREVIEW)
+// 4. TELECALLER SIMULATOR (LIVE D1 QUEUE)
 // ----------------------------------------------------
+async function loadSimulatorQueue() {
+    try {
+        // Find first active agent
+        const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE');
+        const agentId = activeAgent ? activeAgent.id : 1;
+        const agentCode = activeAgent ? activeAgent.agent_code : 'AGT001';
+
+        document.getElementById('sim-agent-badge').innerText = agentCode;
+
+        const res = await fetch(`/api/allocations/my-cases?agent_id=${agentId}`);
+        const data = await res.json();
+        const cases = data.cases || [];
+
+        if (cases.length > 0) {
+            activeCasesQueue = cases;
+            currentSimCaseIndex = 0;
+            renderSimulatorCase();
+        } else {
+            // If no cases in D1 yet, show placeholder waiting for real upload
+            activeCasesQueue = [{
+                id: 0,
+                customer_name: "Upload allocation sheet to start",
+                loan_account_no: "N/A",
+                primary_phone: "9876543210",
+                overdue_amount: 0,
+                dpd: 0,
+                bucket: "PENDING"
+            }];
+            currentSimCaseIndex = 0;
+            renderSimulatorCase();
+        }
+    } catch (err) {
+        console.error('Error loading simulator queue from D1:', err);
+    }
+}
+
 function renderSimulatorCase() {
-    const item = sampleSimulatorCases[currentSimCaseIndex];
+    const item = activeCasesQueue[currentSimCaseIndex];
     if (!item) return;
 
     document.getElementById('sim-case-index').innerText = currentSimCaseIndex + 1;
-    document.getElementById('sim-case-total').innerText = sampleSimulatorCases.length;
-    document.getElementById('sim-case-name').innerText = item.name;
-    document.getElementById('sim-case-loan').innerText = `Loan Acc: ${item.loan}`;
-    document.getElementById('sim-case-phone').innerText = `+91 ${item.phone.slice(0, 5)} ${item.phone.slice(5)}`;
-    document.getElementById('sim-case-amount').innerText = `₹ ${item.amount.toLocaleString()}`;
-    document.getElementById('sim-case-dpd').innerText = `DPD: ${item.dpd} Days`;
-    document.getElementById('sim-case-bucket').innerText = item.bucket;
+    document.getElementById('sim-case-total').innerText = activeCasesQueue.length;
+    document.getElementById('sim-case-name').innerText = item.customer_name;
+    document.getElementById('sim-case-loan').innerText = `Loan Acc: ${item.loan_account_no}`;
+    
+    const phone = String(item.primary_phone || '');
+    document.getElementById('sim-case-phone').innerText = phone.length >= 10 
+        ? `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`
+        : phone;
+
+    document.getElementById('sim-case-amount').innerText = `₹ ${Number(item.overdue_amount || 0).toLocaleString()}`;
+    document.getElementById('sim-case-dpd').innerText = `DPD: ${item.dpd || 0} Days`;
+    document.getElementById('sim-case-bucket').innerText = item.bucket || 'BUCKET 1';
 
     document.getElementById('sim-call-status-text').innerText = 'Ready to Dial';
     document.getElementById('sim-call-timer').innerText = '00:00';
@@ -403,7 +465,6 @@ function renderSimulatorCase() {
 
 function triggerSimDial() {
     if (isSimCalling) {
-        // Disconnect Call
         endSimCall();
         return;
     }
@@ -411,10 +472,10 @@ function triggerSimDial() {
     isSimCalling = true;
     simTimerSeconds = 0;
     const btn = document.getElementById('sim-dial-btn');
-    btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
-    btn.classList.add('bg-rose-600', 'hover:bg-rose-500');
+    btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+    btn.classList.add('bg-rose-600', 'hover:bg-rose-700');
     btn.innerHTML = `<i data-lucide="phone-off" class="w-4 h-4"></i> End Call`;
-    document.getElementById('sim-call-status-text').innerText = `Calling via SIM 1 (${simAudioMode})...`;
+    document.getElementById('sim-call-status-text').innerText = `Calling SIM 1 (${simAudioMode})...`;
 
     simInterval = setInterval(() => {
         simTimerSeconds++;
@@ -430,38 +491,63 @@ function endSimCall() {
     isSimCalling = false;
     clearInterval(simInterval);
     const btn = document.getElementById('sim-dial-btn');
-    btn.classList.remove('bg-rose-600', 'hover:bg-rose-500');
-    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+    btn.classList.remove('bg-rose-600', 'hover:bg-rose-700');
+    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
     btn.innerHTML = `<i data-lucide="phone" class="w-4 h-4"></i> Start Auto-Dialing`;
     document.getElementById('sim-call-status-text').innerText = 'Call Ended — Tap Tag Below';
     lucide.createIcons();
 }
 
-function logSimCall(disposition) {
+async function logSimCall(disposition) {
+    const callSecs = simTimerSeconds;
     if (isSimCalling) endSimCall();
 
-    const item = sampleSimulatorCases[currentSimCaseIndex];
+    const item = activeCasesQueue[currentSimCaseIndex];
+    if (item && item.id > 0) {
+        const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE');
+        const agentId = activeAgent ? activeAgent.id : 1;
+
+        // Post real call log to Cloudflare D1
+        try {
+            await fetch('/api/calls/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    allocation_id: item.id,
+                    agent_id: agentId,
+                    dialed_phone: item.primary_phone,
+                    call_duration_seconds: callSecs,
+                    disposition: disposition,
+                    ptp_amount: disposition === 'PTP' ? item.overdue_amount : null,
+                    ptp_date: disposition === 'PTP' ? new Date(Date.now() + 86400000).toISOString().slice(0, 10) : null
+                })
+            });
+            loadDashboardStats();
+        } catch (e) {
+            console.error('Error logging call to D1:', e);
+        }
+    }
+
     document.getElementById('sim-call-status-text').innerText = `Saved: ${disposition}. Next in 3s...`;
 
-    // Advance to next debtor automatically after 3 seconds
     setTimeout(() => {
-        if (!isSimPaused) {
-            currentSimCaseIndex = (currentSimCaseIndex + 1) % sampleSimulatorCases.length;
+        if (!isSimPaused && activeCasesQueue.length > 1) {
+            currentSimCaseIndex = (currentSimCaseIndex + 1) % activeCasesQueue.length;
             renderSimulatorCase();
-            triggerSimDial(); // Auto-dial next debtor!
+            triggerSimDial();
         }
-    }, 2000);
+    }, 2500);
 }
 
 function toggleSimPause() {
     isSimPaused = !isSimPaused;
     const btn = document.getElementById('sim-pause-btn');
     if (isSimPaused) {
-        btn.classList.add('bg-amber-600', 'text-white');
+        btn.classList.add('bg-amber-100', 'text-amber-800', 'border-amber-300');
         btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i>`;
         document.getElementById('sim-call-status-text').innerText = 'Auto-Dialer Paused';
     } else {
-        btn.classList.remove('bg-amber-600', 'text-white');
+        btn.classList.remove('bg-amber-100', 'text-amber-800', 'border-amber-300');
         btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4"></i>`;
         document.getElementById('sim-call-status-text').innerText = 'Resumed';
     }
@@ -473,21 +559,21 @@ function toggleSimAudio() {
     if (simAudioMode === 'HEADSET') {
         simAudioMode = 'SPEAKER';
         btn.innerHTML = `<i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Speaker`;
-        btn.classList.replace('text-emerald-400', 'text-amber-400');
+        btn.className = 'px-2.5 py-1 bg-white rounded-lg text-[10px] font-bold text-amber-700 flex items-center gap-1 border border-slate-200 shadow-sm';
     } else if (simAudioMode === 'SPEAKER') {
         simAudioMode = 'EARPIECE';
         btn.innerHTML = `<i data-lucide="phone" class="w-3.5 h-3.5"></i> Handset`;
-        btn.classList.replace('text-amber-400', 'text-blue-400');
+        btn.className = 'px-2.5 py-1 bg-white rounded-lg text-[10px] font-bold text-blue-700 flex items-center gap-1 border border-slate-200 shadow-sm';
     } else {
         simAudioMode = 'HEADSET';
         btn.innerHTML = `<i data-lucide="headphones" class="w-3.5 h-3.5"></i> Earphone`;
-        btn.classList.replace('text-blue-400', 'text-emerald-400');
+        btn.className = 'px-2.5 py-1 bg-white rounded-lg text-[10px] font-bold text-emerald-700 flex items-center gap-1 border border-slate-200 shadow-sm';
     }
     lucide.createIcons();
 }
 
 // ----------------------------------------------------
-// 5. AUDIT REPORTS & BANK EXPORT
+// 5. AUDIT REPORTS & BANK EXPORT (REAL D1 CALLS)
 // ----------------------------------------------------
 function initDatePickers() {
     const today = new Date().toISOString().slice(0, 10);
@@ -509,30 +595,30 @@ async function loadReports() {
         if (!tbody) return;
 
         if (records.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">No calls logged on ${date}.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400 font-medium">No calls logged in Cloudflare D1 on ${date}.</td></tr>`;
             return;
         }
 
         tbody.innerHTML = records.map(r => `
-            <tr class="hover:bg-slate-800/40">
-                <td class="py-2.5 px-4 text-slate-400 font-mono text-[11px]">${r.called_at.slice(11, 19)}</td>
-                <td class="py-2.5 px-4 font-bold text-white font-mono">${r.agent_code}</td>
-                <td class="py-2.5 px-4 font-mono text-slate-300">${r.loan_account_no}</td>
-                <td class="py-2.5 px-4 text-slate-200 font-medium">${r.customer_name}</td>
-                <td class="py-2.5 px-4 font-mono text-blue-400 font-bold">${r.dialed_phone}</td>
-                <td class="py-2.5 px-4 font-mono text-slate-300">${r.call_duration_seconds}s</td>
+            <tr class="hover:bg-slate-50 transition">
+                <td class="py-2.5 px-4 text-slate-500 font-mono text-[11px]">${(r.called_at || '').slice(11, 19)}</td>
+                <td class="py-2.5 px-4 font-bold text-slate-900 font-mono">${r.agent_code}</td>
+                <td class="py-2.5 px-4 font-mono text-slate-600">${r.loan_account_no}</td>
+                <td class="py-2.5 px-4 text-slate-900 font-medium">${r.customer_name}</td>
+                <td class="py-2.5 px-4 font-mono text-blue-700 font-bold">${r.dialed_phone}</td>
+                <td class="py-2.5 px-4 font-mono text-slate-600">${r.call_duration_seconds}s</td>
                 <td class="py-2.5 px-4">
                     <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
-                        r.disposition === 'PTP' ? 'bg-emerald-500/20 text-emerald-400' :
-                        r.disposition === 'RNR' ? 'bg-slate-800 text-slate-300' :
-                        r.disposition === 'WRONG_NUMBER' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-300'
+                        r.disposition === 'PTP' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                        r.disposition === 'RNR' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                        r.disposition === 'WRONG_NUMBER' ? 'bg-rose-50 text-rose-800 border border-rose-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
                     }">${r.disposition}</span>
                 </td>
-                <td class="py-2.5 px-4 font-mono text-amber-400 font-bold">${r.ptp_amount ? '₹' + Number(r.ptp_amount).toLocaleString() : '-'}</td>
+                <td class="py-2.5 px-4 font-mono text-amber-600 font-bold">${r.ptp_amount ? '₹' + Number(r.ptp_amount).toLocaleString() : '-'}</td>
             </tr>
         `).join('');
     } catch (err) {
-        console.warn('Reports load fallback:', err);
+        console.error('Error loading reports from D1:', err);
     }
 }
 

@@ -13,50 +13,205 @@ const MIME_TYPES = {
     '.csv': 'text/csv'
 };
 
+// Real Local In-Memory DB (Mirroring Cloudflare D1)
+let realAgents = [
+    { id: 1, agent_code: 'AGT001', full_name: 'Rahul Sharma', phone: '9876543210', status: 'ACTIVE', hardware_uuid: null, device_model: null, assigned_cases: 0, calls_today: 0 }
+];
+let realAllocations = [];
+let realCallLogs = [];
+
 const server = http.createServer((req, res) => {
     let url = req.url.split('?')[0];
 
-    // Mock API responses for local testing
-    if (url === '/api/dashboard/stats') {
+    // Read POST JSON body helper
+    const readJson = (callback) => {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                callback(JSON.parse(body || '{}'));
+            } catch (e) {
+                callback({});
+            }
+        });
+    };
+
+    // 1. Dashboard Stats (Real calculated from memory/D1)
+    if (url === '/api/dashboard/stats' && req.method === 'GET') {
+        const totalCalls = realCallLogs.length;
+        const connectedCalls = realCallLogs.filter(c => c.call_duration_seconds > 0).length;
+        const connectRate = totalCalls > 0 ? Math.round((connectedCalls / totalCalls) * 100) : 0;
+        const ptpLogs = realCallLogs.filter(c => c.disposition === 'PTP');
+        const ptpAmount = ptpLogs.reduce((acc, c) => acc + (parseFloat(c.ptp_amount) || 0), 0);
+
+        // Group by disposition
+        const dispCounts = {};
+        realCallLogs.forEach(c => {
+            dispCounts[c.disposition] = (dispCounts[c.disposition] || 0) + 1;
+        });
+        const dispositions = Object.keys(dispCounts).map(k => ({ disposition: k, count: dispCounts[k] }));
+
+        // Leaderboard
+        const leaderboard = realAgents.map(a => {
+            const agentLogs = realCallLogs.filter(c => c.agent_id === a.id);
+            const aPtp = agentLogs.filter(c => c.disposition === 'PTP');
+            const ptpValue = aPtp.reduce((acc, c) => acc + (parseFloat(c.ptp_amount) || 0), 0);
+            const talkSecs = agentLogs.reduce((acc, c) => acc + (c.call_duration_seconds || 0), 0);
+            return {
+                agent_code: a.agent_code,
+                full_name: a.full_name,
+                calls_made: agentLogs.length,
+                ptp_count: aPtp.length,
+                ptp_value: ptpValue,
+                total_talk_seconds: talkSecs
+            };
+        }).filter(a => a.calls_made > 0);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
             kpis: {
-                total_calls_today: 1420,
-                connected_calls: 864,
-                connect_rate: 61,
-                total_talk_time_minutes: 1820,
-                total_ptp_cases: 148,
-                total_ptp_amount: 874000,
-                online_agents: 42,
-                total_agents: 50,
-                revoked_agents: 1,
+                total_calls_today: totalCalls,
+                connected_calls: connectedCalls,
+                connect_rate: connectRate,
+                total_ptp_amount: ptpAmount,
+                total_ptp_cases: ptpLogs.length,
+                online_agents: realAgents.filter(a => a.status === 'ACTIVE').length,
+                total_agents: realAgents.length,
+                revoked_agents: realAgents.filter(a => a.status === 'REVOKED').length
             },
-            dispositions: [
-                { disposition: 'RNR', count: 480 },
-                { disposition: 'PTP', count: 148 },
-                { disposition: 'BUSY', count: 210 },
-                { disposition: 'SWITCHED_OFF', count: 190 },
-                { disposition: 'WRONG_NUMBER', count: 65 },
-                { disposition: 'DISPUTE', count: 22 },
-                { disposition: 'PAID_ONLINE', count: 18 }
-            ],
-            leaderboard: [
-                { agent_code: 'AGT001', full_name: 'Rahul Sharma', calls_made: 265, ptp_count: 24, ptp_value: 142000, total_talk_seconds: 4800 },
-                { agent_code: 'AGT004', full_name: 'Priya Patel', calls_made: 240, ptp_count: 21, ptp_value: 118000, total_talk_seconds: 4200 },
-                { agent_code: 'AGT012', full_name: 'Amit Verma', calls_made: 220, ptp_count: 18, ptp_value: 95000, total_talk_seconds: 3900 }
-            ]
+            dispositions,
+            leaderboard
         }));
     }
 
-    if (url === '/api/agents') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({
-            agents: [
-                { id: 1, agent_code: 'AGT001', full_name: 'Rahul Sharma', phone: '9876543210', status: 'ACTIVE', hardware_uuid: 'a4f910e928ab9821', device_model: 'Samsung Galaxy M31', assigned_cases: 250, calls_today: 265 },
-                { id: 2, agent_code: 'AGT002', full_name: 'Sneha Kulkarni', phone: '9823019283', status: 'ACTIVE', hardware_uuid: 'b98218ae87123901', device_model: 'Redmi Note 12', assigned_cases: 240, calls_today: 230 },
-                { id: 3, agent_code: 'AGT003', full_name: 'Karan Mehra', phone: '9711823901', status: 'REVOKED', hardware_uuid: 'ff92817361284910', device_model: 'Realme 9 Pro', assigned_cases: 0, calls_today: 0 }
-            ]
+    // 2. Agents List & Create
+    if (url === '/api/agents' && req.method === 'GET') {
+        const enriched = realAgents.map(a => ({
+            ...a,
+            assigned_cases: realAllocations.filter(al => al.assigned_agent_id === a.id && al.status !== 'RESOLVED').length,
+            calls_today: realCallLogs.filter(cl => cl.agent_id === a.id).length
         }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ agents: enriched }));
+    }
+
+    if (url === '/api/agents' && req.method === 'POST') {
+        readJson(body => {
+            const newAgent = {
+                id: realAgents.length + 1,
+                agent_code: (body.agent_code || '').toUpperCase().trim(),
+                full_name: body.full_name,
+                phone: body.phone,
+                status: 'ACTIVE',
+                hardware_uuid: null,
+                device_model: null,
+                assigned_cases: 0,
+                calls_today: 0
+            };
+            realAgents.push(newAgent);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: `Agent ${newAgent.agent_code} created!` }));
+        });
+        return;
+    }
+
+    // 3. Kill-Switch API
+    if (url.startsWith('/api/agents/') && url.endsWith('/kill-switch') && req.method === 'POST') {
+        const id = parseInt(url.split('/')[3]);
+        readJson(body => {
+            const agent = realAgents.find(a => a.id === id);
+            if (agent) {
+                agent.status = body.action === 'REVOKE' ? 'REVOKED' : 'ACTIVE';
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: `Status updated to ${agent ? agent.status : ''}` }));
+        });
+        return;
+    }
+
+    // 4. Upload Allocations API
+    if (url === '/api/allocations/upload' && req.method === 'POST') {
+        readJson(body => {
+            const cases = body.cases || [];
+            const activeAgents = realAgents.filter(a => a.status === 'ACTIVE');
+            if (activeAgents.length === 0) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'No active agents available.' }));
+            }
+
+            cases.forEach((item, idx) => {
+                const targetAgent = body.target_agent_id 
+                    ? realAgents.find(a => a.id === parseInt(body.target_agent_id)) 
+                    : activeAgents[idx % activeAgents.length];
+
+                realAllocations.push({
+                    id: realAllocations.length + 1,
+                    customer_name: item.customer_name || item.name || 'Unknown',
+                    loan_account_no: item.loan_account_no || item.loan_id || `PL-${Date.now().toString().slice(-6)}`,
+                    primary_phone: String(item.primary_phone || item.phone || '').replace(/\D/g, ''),
+                    overdue_amount: parseFloat(item.overdue_amount || 0) || 0,
+                    dpd: parseInt(item.dpd || 0) || 0,
+                    bucket: item.bucket || 'BUCKET 1',
+                    assigned_agent_id: targetAgent ? targetAgent.id : 1,
+                    status: 'PENDING'
+                });
+            });
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: `Successfully allocated ${cases.length} cases!` }));
+        });
+        return;
+    }
+
+    // 5. Agent My-Cases API
+    if (url === '/api/allocations/my-cases' && req.method === 'GET') {
+        const urlParams = new URL(req.url, `http://localhost:${PORT}`);
+        const agentId = parseInt(urlParams.searchParams.get('agent_id') || '1');
+        const cases = realAllocations.filter(a => a.assigned_agent_id === agentId && a.status !== 'RESOLVED');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ cases, total: cases.length }));
+    }
+
+    // 6. Log Call API
+    if (url === '/api/calls/log' && req.method === 'POST') {
+        readJson(body => {
+            const newLog = {
+                id: realCallLogs.length + 1,
+                allocation_id: body.allocation_id,
+                agent_id: body.agent_id || 1,
+                dialed_phone: body.dialed_phone,
+                call_duration_seconds: body.call_duration_seconds || 0,
+                disposition: body.disposition,
+                ptp_amount: body.ptp_amount,
+                ptp_date: body.ptp_date,
+                called_at: new Date().toISOString()
+            };
+            realCallLogs.push(newLog);
+
+            // Update allocation
+            const alloc = realAllocations.find(a => a.id === body.allocation_id);
+            if (alloc) alloc.status = 'CALLED';
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: 'Call logged' }));
+        });
+        return;
+    }
+
+    // 7. Reports API
+    if (url === '/api/reports/export' && req.method === 'GET') {
+        const enriched = realCallLogs.map(l => {
+            const a = realAgents.find(ag => ag.id === l.agent_id) || {};
+            const al = realAllocations.find(alc => alc.id === l.allocation_id) || {};
+            return {
+                ...l,
+                agent_code: a.agent_code || 'AGT001',
+                customer_name: al.customer_name || 'Borrower',
+                loan_account_no: al.loan_account_no || '-'
+            };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ records: enriched }));
     }
 
     // Serve static files
