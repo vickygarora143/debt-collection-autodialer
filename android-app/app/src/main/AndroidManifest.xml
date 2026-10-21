@@ -4,6 +4,8 @@
 
     <!-- Direct SIM Calling without manual dialing -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- Automated Background SMS via Cellular SIM -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- Call state monitoring (Ringing, Connected, Ended, Duration) -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />

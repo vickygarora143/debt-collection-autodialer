@@ -368,6 +368,41 @@
                     </LinearLayout>
                 </LinearLayout>
 
+                <!-- 3B-2. AUTOMATED SMS CONFIGURATION BAR -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="#FFFFFF"
+                    android:elevation="1dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp">
+
+                    <CheckBox
+                        android:id="@+id/cbAutoSms"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:checked="true"
+                        android:text="Auto-SMS on Call"
+                        android:textColor="#0F172A"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnSmsTemplate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:backgroundTint="#EFF6FF"
+                        android:paddingHorizontal="10dp"
+                        android:text="💬 Template"
+                        android:textColor="#2563EB"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
                 <!-- 3C. PRIMARY DEBTOR CARD (WHITE, SHADOW, IDENTICAL TO WEB APP) -->
                 <LinearLayout
                     android:layout_width="match_parent"

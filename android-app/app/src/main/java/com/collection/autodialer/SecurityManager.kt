@@ -14,6 +14,7 @@ object SecurityManager {
     private const val PREFS_NAME = "DebtFlowSecurePrefs"
     private const val KEY_AGENT_ID = "agent_id"
     private const val KEY_AGENT_CODE = "agent_code"
+    private const val KEY_AGENT_PHONE = "agent_phone"
     private const val KEY_IS_LOCKED = "is_locked"
 
     // 1. Blocks Screenshots and Screen Recording on Android
@@ -66,11 +67,12 @@ object SecurityManager {
         return false
     }
 
-    fun saveAgentSession(context: Context, agentId: Int, agentCode: String) {
+    fun saveAgentSession(context: Context, agentId: Int, agentCode: String, agentPhone: String = "") {
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putInt(KEY_AGENT_ID, agentId)
             .putString(KEY_AGENT_CODE, agentCode)
+            .putString(KEY_AGENT_PHONE, agentPhone)
             .putBoolean(KEY_IS_LOCKED, false)
             .apply()
     }
@@ -83,5 +85,10 @@ object SecurityManager {
     fun getAgentCode(context: Context): String {
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_AGENT_CODE, "") ?: ""
+    }
+
+    fun getAgentPhone(context: Context): String {
+        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_AGENT_PHONE, "") ?: ""
     }
 }

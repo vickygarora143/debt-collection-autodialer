@@ -425,13 +425,13 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // Version Check API for in-app auto updates (Point 6)
+            // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 2,
-                    versionName: "1.0.2",
+                    versionCode: 3,
+                    versionName: "1.0.3",
                     apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.0.apk",
-                    changelog: "Pristine Light Theme, Smart Call Detection, Auto-Refresh Queue, In-App Feedback Export, Truecaller overlay bypass."
+                    changelog: "Automated SMS on Dial, Simple & Bulk SMS Templates, Multi-Device Login"
                 }), { headers: corsHeaders });
             }
 

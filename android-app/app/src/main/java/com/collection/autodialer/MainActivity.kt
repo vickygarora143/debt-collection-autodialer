@@ -10,6 +10,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -66,6 +67,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var btnExportFeedback: Button
     private lateinit var layoutDispositions: LinearLayout
 
+    // Automated SMS Views
+    private lateinit var cbAutoSms: CheckBox
+    private lateinit var btnSmsTemplate: Button
+
     // Native Android File Picker for Agent Self-Allocation
     private val filePickerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -84,10 +89,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         initViews()
         telephonyService = TelephonyService(this, this)
 
-        // Runtime Telephony Permissions
+        // Runtime Telephony Permissions (Phone, Call Log, SMS)
         checkPermissions()
 
-        // Check for in-app updates (Point 6)
+        // Check for in-app updates
         checkForAppUpdates()
 
         // Check if agent is already logged in
@@ -131,11 +136,25 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         btnExportFeedback = findViewById(R.id.btnExportFeedback)
         layoutDispositions = findViewById(R.id.layoutDispositions)
 
+        cbAutoSms = findViewById(R.id.cbAutoSms)
+        btnSmsTemplate = findViewById(R.id.btnSmsTemplate)
+
         setupButtonListeners()
     }
 
     private fun setupButtonListeners() {
-        // Point 3: Refresh queue from Cloudflare without logout
+        // SMS Configuration Listeners
+        cbAutoSms.isChecked = SmsSenderService.isAutoSmsEnabled(this)
+        cbAutoSms.setOnCheckedChangeListener { _, isChecked ->
+            SmsSenderService.setAutoSmsEnabled(this, isChecked)
+            Toast.makeText(this, if (isChecked) "Auto-SMS active on call" else "Auto-SMS paused", Toast.LENGTH_SHORT).show()
+        }
+
+        btnSmsTemplate.setOnClickListener {
+            openSmsTemplateDialog()
+        }
+
+        // Refresh queue from Cloudflare without logout
         btnRefreshQueue.setOnClickListener {
             val agentId = SecurityManager.getAgentId(this)
             if (agentId != -1) {
@@ -143,7 +162,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             }
         }
 
-        // Point 2: Export daily feedback / shift report
+        // Export daily feedback / shift report
         btnExportFeedback.setOnClickListener {
             exportShiftFeedback()
         }
@@ -184,7 +203,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             }
         }
 
-        // Point 5: 1-Tap Recovery Feedback Buttons (Always accessible)
+        // 1-Tap Recovery Feedback Buttons (Always visible)
         findViewById<Button>(R.id.btnDispPtp).setOnClickListener { recordDisposition("PTP") }
         findViewById<Button>(R.id.btnDispBrokenPtp).setOnClickListener { recordDisposition("BROKEN_PTP") }
         findViewById<Button>(R.id.btnDispRnr).setOnClickListener { recordDisposition("RNR") }
@@ -198,6 +217,82 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             val pass = findViewById<EditText>(R.id.etAgentPassword).text.toString().trim()
             performLogin(code, pass)
         }
+    }
+
+    private fun openSmsTemplateDialog() {
+        val context = this
+        val currentDetails = SmsSenderService.getTemplateDetails(context)
+        val currentBulk = SmsSenderService.getTemplateBulk(context)
+
+        val scroll = ScrollView(context)
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 20, 40, 20)
+        }
+
+        // Section 1: Template with Full Details
+        val tvLabel1 = TextView(context).apply {
+            text = "1. FULL DETAILS TEMPLATE (Customer Name + Overdue Amount)"
+            textSize = 11f
+            setTextColor(0xFF2563EB.toInt())
+            paint.isFakeBoldText = true
+        }
+        val etDetails = EditText(context).apply {
+            setText(currentDetails)
+            textSize = 13f
+            minLines = 3
+            background = ContextCompat.getDrawable(context, android.R.drawable.edit_text)
+        }
+        val tvHint1 = TextView(context).apply {
+            text = "Placeholders: {NAME}, {AMOUNT}, {AGENT_PHONE}"
+            textSize = 10f
+            setTextColor(0xFF64748B.toInt())
+        }
+
+        // Section 2: Simple Bulk Template
+        val tvLabel2 = TextView(context).apply {
+            text = "\n2. SIMPLE BULK TEMPLATE (When Uploading Numbers Only)"
+            textSize = 11f
+            setTextColor(0xFFD97706.toInt())
+            paint.isFakeBoldText = true
+        }
+        val etBulk = EditText(context).apply {
+            setText(currentBulk)
+            textSize = 13f
+            minLines = 3
+            background = ContextCompat.getDrawable(context, android.R.drawable.edit_text)
+        }
+        val tvHint2 = TextView(context).apply {
+            text = "Placeholders: {AGENT_PHONE}"
+            textSize = 10f
+            setTextColor(0xFF64748B.toInt())
+        }
+
+        layout.addView(tvLabel1)
+        layout.addView(etDetails)
+        layout.addView(tvHint1)
+        layout.addView(tvLabel2)
+        layout.addView(etBulk)
+        layout.addView(tvHint2)
+        scroll.addView(layout)
+
+        AlertDialog.Builder(context)
+            .setTitle("SMS Templates Setup")
+            .setView(scroll)
+            .setPositiveButton("Save Templates") { _, _ ->
+                val newDetails = etDetails.text.toString().trim()
+                val newBulk = etBulk.text.toString().trim()
+                if (newDetails.isNotEmpty()) SmsSenderService.saveTemplateDetails(context, newDetails)
+                if (newBulk.isNotEmpty()) SmsSenderService.saveTemplateBulk(context, newBulk)
+                Toast.makeText(context, "Templates saved successfully!", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Reset Default") { _, _ ->
+                SmsSenderService.saveTemplateDetails(context, SmsSenderService.DEFAULT_TEMPLATE_DETAILS)
+                SmsSenderService.saveTemplateBulk(context, SmsSenderService.DEFAULT_TEMPLATE_BULK)
+                Toast.makeText(context, "Reset to standard templates.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun performLogin(code: String, pass: String) {
@@ -217,7 +312,8 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 result.onSuccess { json ->
                     val agentObj = json.getJSONObject("agent")
                     val agentId = agentObj.getInt("id")
-                    SecurityManager.saveAgentSession(this, agentId, code)
+                    val agentPhone = agentObj.optString("phone", "")
+                    SecurityManager.saveAgentSession(this, agentId, code, agentPhone)
                     tvQueueProgress.text = code
                     showDialerScreen()
                     startHeartbeatCycle()
@@ -229,7 +325,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    // Point 3: Instant Queue Fetch / Refresh
     private fun fetchAssignedQueue(agentId: Int, showToast: Boolean) {
         tvCallStatus.text = "Syncing queue..."
         thread {
@@ -281,7 +376,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
         btnStartDial.isEnabled = true
         val item = assignedCases[currentCaseIndex]
-        tvDebtorName.text = item.optString("customer_name", "Unknown Lead")
+        val name = item.optString("customer_name", "Unknown Lead")
+        val isBulkNumber = name.startsWith("Lead #", ignoreCase = true) || name.equals("Personal Debtor Lead", ignoreCase = true)
+
+        tvDebtorName.text = if (isBulkNumber) "Bulk Lead (${item.optString("primary_phone")})" else name
         tvLoanAcc.text = "Loan Acc: ${item.optString("loan_account_no", "-")}"
         tvPhone.text = item.optString("primary_phone", "-")
         tvOverdue.text = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
@@ -331,6 +429,28 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         tvCallTimer.text = "00:00"
         isCallInProgress = true
 
+        // AUTOMATED SMS ON DIAL
+        if (cbAutoSms.isChecked) {
+            val debtorName = item.optString("customer_name", "")
+            val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
+            val agentPhone = SecurityManager.getAgentPhone(this)
+
+            thread {
+                val sent = SmsSenderService.sendAutoSms(
+                    context = this,
+                    recipientPhone = phoneNumber,
+                    customerName = debtorName,
+                    overdueAmount = overdueAmt,
+                    agentPhone = agentPhone
+                )
+                if (sent) {
+                    handler.post {
+                        tvCallStatus.text = "Dialing $phoneNumber • SMS Sent ✓"
+                    }
+                }
+            }
+        }
+
         telephonyService.placeCall(phoneNumber)
     }
 
@@ -356,7 +476,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         callChronometerHandler = null
     }
 
-    // Callbacks from TelephonyService
     override fun onCallConnected() {
         handler.post {
             tvCallStatus.text = "Call Connected • Talking..."
@@ -364,17 +483,13 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    // Point 1 & Point 4: Smart Call Analysis & Truecaller Overlay Bypass
     override fun onCallDisconnected(durationSeconds: Int) {
         currentCallDuration = durationSeconds
         isCallInProgress = false
         handler.post {
             stopCallTimerTicker()
-            
-            // Point 1: Bring DebtFlow to front immediately (bypassing Truecaller overlay)
             bringAppToFront()
 
-            // Point 4: Telephony Smart Outcome Analysis
             val autoTag = if (durationSeconds > 0) "CONNECTED" else "RNR"
             tvCallStatus.text = if (durationSeconds > 0) {
                 "Call Ended (${durationSeconds}s) • Tap Outcome Tag"
@@ -382,12 +497,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 "Ringing Dropped (RNR) • Next in 4s..."
             }
 
-            // Start countdown to next call
             startCountdownTimer(defaultTag = if (durationSeconds > 0) "RNR" else "RNR")
         }
     }
 
-    // Point 1: Re-surface DebtFlow over any overlay
     private fun bringAppToFront() {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
@@ -474,7 +587,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    // Point 2: Export Agent Shift Feedback as CSV
     private fun exportShiftFeedback() {
         val agentId = SecurityManager.getAgentId(this)
         if (agentId == -1) return
@@ -520,19 +632,18 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    // Point 6: In-App Auto-Update Check
     private fun checkForAppUpdates() {
         thread {
             val res = ApiClient.get("/api/version")
             res.onSuccess { json ->
                 val serverVersionCode = json.optInt("versionCode", 1)
-                val serverVersionName = json.optString("versionName", "1.0.2")
+                val serverVersionName = json.optString("versionName", "1.0.3")
                 val apkUrl = json.optString("apkUrl", "")
-                val changelog = json.optString("changelog", "Performance improvements")
+                val changelog = json.optString("changelog", "Automated SMS on Dial, Smart Templates, Performance")
 
-                if (serverVersionCode > 1) {
+                if (serverVersionCode > 2) {
                     handler.post {
-                        androidx.appcompat.app.AlertDialog.Builder(this)
+                        AlertDialog.Builder(this)
                             .setTitle("Update Available ($serverVersionName)")
                             .setMessage("New Features:\n• $changelog\n\nWould you like to update now?")
                             .setPositiveButton("Update Now") { _, _ ->
@@ -547,7 +658,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    // Point 7: Import New Cases & Automatically Remove Previous Completed/Old Cases
     private fun handleAgentFileImport(uri: android.net.Uri) {
         val agentId = SecurityManager.getAgentId(this)
         if (agentId == -1) return
@@ -583,7 +693,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 }
                 reader.close()
 
-                // Point 7: Wipe local device cache immediately so previous cases are cleared
                 deleteFile("cached_cases.json")
                 assignedCases.clear()
 
@@ -726,6 +835,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private fun checkPermissions() {
         val perms = arrayOf(
             Manifest.permission.CALL_PHONE,
+            Manifest.permission.SEND_SMS,
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.READ_CALL_LOG
         )
@@ -757,7 +867,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             startCountdownTimer()
         }
 
-        // Point 3: Auto-refresh queue on resume if queue is currently empty
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1 && assignedCases.isEmpty()) {
             fetchAssignedQueue(agentId, showToast = false)
