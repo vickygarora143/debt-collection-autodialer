@@ -130,7 +130,7 @@ export default {
                 return new Response(JSON.stringify({ success: true, message: 'Device lock cleared in D1.' }), { headers: corsHeaders });
             }
 
-            // 5. Allocations Upload & Distribution
+            // 5. Admin Allocations Upload & Distribution
             if (url.pathname === '/api/allocations/upload' && method === 'POST') {
                 const body = await request.json();
                 const cases = body.cases || [];
@@ -178,7 +178,6 @@ export default {
                     );
                 }
 
-                // Batch insert into D1 in chunks of 50
                 for (let i = 0; i < statements.length; i += 50) {
                     await env.DB.batch(statements.slice(i, i + 50));
                 }
@@ -190,7 +189,64 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // 6. Agent Cases Queue
+            // 6. AGENT SELF-ALLOCATION UPLOAD (NEW FEATURE)
+            // Allows telecallers to upload their OWN leads directly from mobile/WhatsApp/file
+            if (url.pathname === '/api/allocations/upload-agent' && method === 'POST') {
+                const body = await request.json();
+                const agentId = parseInt(body.agent_id || '0');
+                const cases = body.cases || [];
+
+                if (!agentId || agentId <= 0) {
+                    return new Response(JSON.stringify({ error: 'Valid agent_id required' }), { status: 400, headers: corsHeaders });
+                }
+
+                // Check if agent is active
+                const agent = await env.DB.prepare('SELECT agent_code, status FROM agents WHERE id = ?').bind(agentId).first();
+                if (!agent || agent.status === 'REVOKED') {
+                    return new Response(JSON.stringify({ error: 'Agent account is inactive or revoked.' }), { status: 403, headers: corsHeaders });
+                }
+
+                const batchName = `SelfUpload_${agent.agent_code}_${new Date().toISOString().slice(0, 10)}`;
+                const statements = [];
+
+                for (const item of cases) {
+                    let rawPhone = String(item.primary_phone || item.phone || item.mobile || '').replace(/\D/g, '');
+                    if (rawPhone.length === 12 && rawPhone.startsWith('91')) rawPhone = rawPhone.substring(2);
+                    if (rawPhone.length === 11 && rawPhone.startsWith('0')) rawPhone = rawPhone.substring(1);
+                    if (!rawPhone || rawPhone.length < 10) continue;
+
+                    statements.push(
+                        env.DB.prepare(
+                            `INSERT INTO allocations (
+                                batch_name, assigned_agent_id, customer_name, loan_account_no, 
+                                primary_phone, overdue_amount, dpd, bucket, status
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`
+                        ).bind(
+                            batchName,
+                            agentId,
+                            String(item.customer_name || item.name || 'Personal Debtor Lead').trim(),
+                            String(item.loan_account_no || item.loan_id || `SLF-${Date.now().toString().slice(-6)}`).trim(),
+                            rawPhone,
+                            parseFloat(item.overdue_amount || 0) || 0,
+                            parseInt(item.dpd || 0) || 0,
+                            String(item.bucket || 'SELF')
+                        )
+                    );
+                }
+
+                for (let i = 0; i < statements.length; i += 50) {
+                    await env.DB.batch(statements.slice(i, i + 50));
+                }
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    total_cases: statements.length,
+                    batch_name: batchName,
+                    message: `Successfully loaded ${statements.length} personal cases into your dialer queue!`
+                }), { headers: corsHeaders });
+            }
+
+            // 7. Agent Cases Queue
             if (url.pathname === '/api/allocations/my-cases' && method === 'GET') {
                 const agentId = parseInt(url.searchParams.get('agent_id') || '1');
                 const { results } = await env.DB.prepare(
@@ -203,7 +259,7 @@ export default {
                 return new Response(JSON.stringify({ cases: results || [], total: (results || []).length }), { headers: corsHeaders });
             }
 
-            // 7. Log Call Disposition
+            // 8. Log Call Disposition
             if (url.pathname === '/api/calls/log' && method === 'POST') {
                 const body = await request.json();
                 await env.DB.prepare(
@@ -226,7 +282,7 @@ export default {
                 return new Response(JSON.stringify({ success: true, message: 'Call logged in Cloudflare D1' }), { headers: corsHeaders });
             }
 
-            // 8. Reports API
+            // 9. Reports API
             if (url.pathname === '/api/reports/export' && method === 'GET') {
                 const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
                 const { results } = await env.DB.prepare(

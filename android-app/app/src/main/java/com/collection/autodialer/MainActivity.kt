@@ -46,7 +46,15 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var btnStartDial: Button
     private lateinit var btnPause: Button
     private lateinit var btnAudioToggle: Button
+    private lateinit var btnAgentImport: Button
     private lateinit var layoutDispositions: LinearLayout
+
+    // Native Android File Picker for Agent Self-Allocation
+    private val filePickerLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { handleAgentFileImport(it) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,12 +105,18 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         btnStartDial = findViewById(R.id.btnStartDial)
         btnPause = findViewById(R.id.btnPause)
         btnAudioToggle = findViewById(R.id.btnAudioToggle)
+        btnAgentImport = findViewById(R.id.btnAgentImport)
         layoutDispositions = findViewById(R.id.layoutDispositions)
 
         setupButtonListeners()
     }
 
     private fun setupButtonListeners() {
+        btnAgentImport.setOnClickListener {
+            // Open native Android file picker to select CSV / Excel
+            filePickerLauncher.launch("*/*")
+        }
+
         btnStartDial.setOnClickListener {
             if (!isAutoDialingActive) {
                 startAutoDialing()
@@ -355,6 +369,60 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         layoutDialer.visibility = View.GONE
         layoutLocked.visibility = View.VISIBLE
         findViewById<TextView>(R.id.tvLockReason).text = reason
+    }
+
+    private fun handleAgentFileImport(uri: android.net.Uri) {
+        val agentId = SecurityManager.getAgentId(this)
+        if (agentId == -1) return
+
+        thread {
+            try {
+                val inputStream = contentResolver.openInputStream(uri)
+                val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream))
+                val casesArray = JSONArray()
+
+                var line: String? = reader.readLine() // Read header
+                var count = 0
+                while (reader.readLine().also { line = it } != null && count < 300) {
+                    val parts = line!!.split(",")
+                    if (parts.isNotEmpty()) {
+                        val phone = parts.find { it.replace(Regex("\\D"), "").length >= 10 } ?: parts[0]
+                        val name = if (parts.size > 1) parts[0] else "Lead #${count + 1}"
+                        val loan = if (parts.size > 2) parts[1] else "SLF-${System.currentTimeMillis() % 10000}"
+
+                        casesArray.put(JSONObject().apply {
+                            put("primary_phone", phone.replace(Regex("\\D"), ""))
+                            put("customer_name", name)
+                            put("loan_account_no", loan)
+                            put("overdue_amount", 10000)
+                            put("dpd", 30)
+                            put("bucket", "SELF")
+                        })
+                        count++
+                    }
+                }
+                reader.close()
+
+                val payload = JSONObject().apply {
+                    put("agent_id", agentId)
+                    put("cases", casesArray)
+                }
+
+                val result = ApiClient.post("/api/allocations/upload-agent", payload)
+                handler.post {
+                    result.onSuccess {
+                        Toast.makeText(this@MainActivity, "Loaded $count personal leads successfully!", Toast.LENGTH_LONG).show()
+                        fetchAssignedQueue(agentId)
+                    }.onFailure { err ->
+                        Toast.makeText(this@MainActivity, "Upload error: ${err.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                handler.post {
+                    Toast.makeText(this@MainActivity, "Failed to read file: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun checkPermissions() {

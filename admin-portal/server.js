@@ -163,6 +163,31 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // 5. Agent Self-Upload API
+    if (url === '/api/allocations/upload-agent' && req.method === 'POST') {
+        readJson(body => {
+            const cases = body.cases || [];
+            const agentId = parseInt(body.agent_id || '1');
+            cases.forEach(item => {
+                realAllocations.push({
+                    id: realAllocations.length + 1,
+                    customer_name: item.customer_name || 'Personal Debtor',
+                    loan_account_no: item.loan_account_no || `SLF-${Date.now().toString().slice(-4)}`,
+                    primary_phone: String(item.primary_phone || '').replace(/\D/g, ''),
+                    overdue_amount: parseFloat(item.overdue_amount || 0) || 0,
+                    dpd: parseInt(item.dpd || 0) || 0,
+                    bucket: item.bucket || 'SELF',
+                    assigned_agent_id: agentId,
+                    status: 'PENDING'
+                });
+            });
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: `Successfully loaded ${cases.length} personal cases into your dialer queue!` }));
+        });
+        return;
+    }
+
     // 5. Agent My-Cases API
     if (url === '/api/allocations/my-cases' && req.method === 'GET') {
         const urlParams = new URL(req.url, `http://localhost:${PORT}`);

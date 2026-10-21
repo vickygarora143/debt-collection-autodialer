@@ -59,7 +59,6 @@ async function loadDashboardStats() {
         const res = await fetch('/api/dashboard/stats');
         const data = await res.json();
 
-        // Update real KPIs from D1 database
         const kpis = data.kpis || {};
         document.getElementById('kpi-total-calls').innerText = (kpis.total_calls_today || 0).toLocaleString();
         document.getElementById('kpi-connected-calls').innerText = (kpis.connected_calls || 0).toLocaleString();
@@ -69,10 +68,7 @@ async function loadDashboardStats() {
         document.getElementById('kpi-online-agents').innerText = kpis.online_agents || 0;
         document.getElementById('kpi-revoked-agents').innerText = kpis.revoked_agents || 0;
 
-        // Render Dispositions Chart
         renderDispositionChart(data.dispositions || []);
-
-        // Render Leaderboard
         renderLeaderboard(data.leaderboard || []);
     } catch (err) {
         console.error('Error loading dashboard stats:', err);
@@ -155,7 +151,6 @@ async function loadAgents() {
         const agents = data.agents || [];
         allAgentsCache = agents;
 
-        // Populate target agent dropdown in Allocations tab
         const targetSelect = document.getElementById('target-agent-select');
         if (targetSelect) {
             targetSelect.innerHTML = agents
@@ -299,7 +294,7 @@ async function handleCreateAgent(e) {
 }
 
 // ----------------------------------------------------
-// 3. ALLOCATION INGESTION & DISTRIBUTION (REAL EXCEL)
+// 3. ALLOCATION INGESTION & DISTRIBUTION (SUPER ADMIN)
 // ----------------------------------------------------
 function initDropZone() {
     const dropZone = document.getElementById('drop-zone');
@@ -403,14 +398,110 @@ async function submitAllocationUpload() {
 }
 
 // ----------------------------------------------------
-// 4. TELECALLER SIMULATOR (LIVE D1 QUEUE)
+// 4. AGENT SELF-ALLOCATION UPLOAD (NEW FEATURE)
+// ----------------------------------------------------
+function openAgentUploadModal() {
+    document.getElementById('agent-upload-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function closeAgentUploadModal() {
+    document.getElementById('agent-upload-modal').classList.add('hidden');
+}
+
+async function handleAgentSelfUpload() {
+    const fileInput = document.getElementById('agent-file-input');
+    const pasteInput = document.getElementById('agent-paste-numbers').value.trim();
+
+    const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE') || { id: 1, agent_code: 'AGT001' };
+    const agentId = activeAgent.id;
+
+    let casesToUpload = [];
+
+    // Mode 1: Check File
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        casesToUpload = json.map(r => ({
+            customer_name: r.customer_name || r.name || 'Personal Debtor',
+            loan_account_no: r.loan_account_no || r.loan_id || `ACC-${Date.now().toString().slice(-4)}`,
+            primary_phone: String(r.primary_phone || r.phone || r.mobile || ''),
+            overdue_amount: parseFloat(r.overdue_amount || r.overdue || 0) || 0,
+            dpd: parseInt(r.dpd || 0) || 0,
+            bucket: r.bucket || 'SELF'
+        }));
+    } else if (pasteInput) {
+        // Mode 2: Check Pasted Numbers
+        const lines = pasteInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        casesToUpload = lines.map((line, idx) => {
+            const cleanPhone = line.replace(/\D/g, '');
+            return {
+                customer_name: `Borrower #${idx + 1}`,
+                loan_account_no: `SLF-${Date.now().toString().slice(-4)}-${idx + 1}`,
+                primary_phone: cleanPhone,
+                overdue_amount: 15000,
+                dpd: 45,
+                bucket: 'SELF'
+            };
+        });
+    } else {
+        alert('Please choose an Excel/CSV file or paste at least one phone number.');
+        return;
+    }
+
+    if (casesToUpload.length === 0) {
+        alert('No valid cases found to upload.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-agent-upload-submit');
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Loading...`;
+    lucide.createIcons();
+
+    try {
+        const res = await fetch('/api/allocations/upload-agent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agent_id: agentId,
+                cases: casesToUpload
+            })
+        });
+
+        const data = await res.json();
+        if (data.error) {
+            alert('Upload error: ' + data.error);
+        } else {
+            alert(`SUCCESS: ${data.message}`);
+            closeAgentUploadModal();
+            document.getElementById('agent-file-input').value = '';
+            document.getElementById('agent-paste-numbers').value = '';
+            loadSimulatorQueue();
+            loadAgents();
+            loadDashboardStats();
+        }
+    } catch (err) {
+        alert('Failed to import personal allocation: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue`;
+        lucide.createIcons();
+    }
+}
+
+// ----------------------------------------------------
+// 5. TELECALLER SIMULATOR (LIVE D1 QUEUE)
 // ----------------------------------------------------
 async function loadSimulatorQueue() {
     try {
-        // Find first active agent
-        const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE');
-        const agentId = activeAgent ? activeAgent.id : 1;
-        const agentCode = activeAgent ? activeAgent.agent_code : 'AGT001';
+        const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE') || { id: 1, agent_code: 'AGT001' };
+        const agentId = activeAgent.id;
+        const agentCode = activeAgent.agent_code;
 
         document.getElementById('sim-agent-badge').innerText = agentCode;
 
@@ -423,10 +514,9 @@ async function loadSimulatorQueue() {
             currentSimCaseIndex = 0;
             renderSimulatorCase();
         } else {
-            // If no cases in D1 yet, show placeholder waiting for real upload
             activeCasesQueue = [{
                 id: 0,
-                customer_name: "Upload allocation sheet to start",
+                customer_name: "Upload allocation sheet or import your own list",
                 loan_account_no: "N/A",
                 primary_phone: "9876543210",
                 overdue_amount: 0,
@@ -504,10 +594,9 @@ async function logSimCall(disposition) {
 
     const item = activeCasesQueue[currentSimCaseIndex];
     if (item && item.id > 0) {
-        const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE');
-        const agentId = activeAgent ? activeAgent.id : 1;
+        const activeAgent = allAgentsCache.find(a => a.status === 'ACTIVE') || { id: 1 };
+        const agentId = activeAgent.id;
 
-        // Post real call log to Cloudflare D1
         try {
             await fetch('/api/calls/log', {
                 method: 'POST',
@@ -559,21 +648,21 @@ function toggleSimAudio() {
     if (simAudioMode === 'HEADSET') {
         simAudioMode = 'SPEAKER';
         btn.innerHTML = `<i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Speaker`;
-        btn.className = 'px-2.5 py-1 bg-white rounded-lg text-[10px] font-bold text-amber-700 flex items-center gap-1 border border-slate-200 shadow-sm';
+        btn.className = 'px-2 py-1 bg-white rounded-lg text-[10px] font-bold text-amber-700 flex items-center gap-1 border border-slate-200 shadow-sm';
     } else if (simAudioMode === 'SPEAKER') {
         simAudioMode = 'EARPIECE';
         btn.innerHTML = `<i data-lucide="phone" class="w-3.5 h-3.5"></i> Handset`;
-        btn.className = 'px-2.5 py-1 bg-white rounded-lg text-[10px] font-bold text-blue-700 flex items-center gap-1 border border-slate-200 shadow-sm';
+        btn.className = 'px-2 py-1 bg-white rounded-lg text-[10px] font-bold text-blue-700 flex items-center gap-1 border border-slate-200 shadow-sm';
     } else {
         simAudioMode = 'HEADSET';
         btn.innerHTML = `<i data-lucide="headphones" class="w-3.5 h-3.5"></i> Earphone`;
-        btn.className = 'px-2.5 py-1 bg-white rounded-lg text-[10px] font-bold text-emerald-700 flex items-center gap-1 border border-slate-200 shadow-sm';
+        btn.className = 'px-2 py-1 bg-white rounded-lg text-[10px] font-bold text-emerald-700 flex items-center gap-1 border border-slate-200 shadow-sm';
     }
     lucide.createIcons();
 }
 
 // ----------------------------------------------------
-// 5. AUDIT REPORTS & BANK EXPORT (REAL D1 CALLS)
+// 6. AUDIT REPORTS & BANK EXPORT (REAL D1 CALLS)
 // ----------------------------------------------------
 function initDatePickers() {
     const today = new Date().toISOString().slice(0, 10);
