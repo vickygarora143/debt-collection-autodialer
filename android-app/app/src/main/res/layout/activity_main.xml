@@ -130,7 +130,7 @@
                 android:layout_marginTop="14dp"
                 android:background="#EFF6FF"
                 android:padding="10dp"
-                android:text="🔒 Device will be hardware-locked to your Agent ID on first login."
+                android:text="⚡ Fast SIM Auto-Dialing • Multi-Device Access Enabled"
                 android:textColor="#1E40AF"
                 android:textSize="11sp" />
 

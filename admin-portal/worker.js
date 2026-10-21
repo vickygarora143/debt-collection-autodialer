@@ -79,16 +79,10 @@ export default {
 
                 const hwUuid = body.hardware_uuid;
                 if (hwUuid && !hwUuid.startsWith('WEB_')) {
-                    if (!agent.hardware_uuid) {
-                        await env.DB.prepare(
-                            'UPDATE agents SET hardware_uuid = ?, device_model = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?'
-                        ).bind(hwUuid, body.device_model || 'Android Phone', agent.id).run();
-                    } else if (agent.hardware_uuid !== hwUuid) {
-                        return new Response(JSON.stringify({
-                            error: 'DEVICE MISMATCH: This account is bound to another phone.',
-                            code: 'DEVICE_UNAUTHORIZED'
-                        }), { status: 403, headers: corsHeaders });
-                    }
+                    // Update latest active device model without locking out other phones
+                    await env.DB.prepare(
+                        'UPDATE agents SET hardware_uuid = ?, device_model = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?'
+                    ).bind(hwUuid, body.device_model || 'Android Phone', agent.id).run();
                 }
 
                 await env.DB.prepare('UPDATE agents SET last_login = CURRENT_TIMESTAMP, last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?').bind(agent.id).run();

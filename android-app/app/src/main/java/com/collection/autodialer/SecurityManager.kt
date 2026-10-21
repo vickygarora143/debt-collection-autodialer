@@ -62,8 +62,8 @@ object SecurityManager {
     }
 
     fun isDeviceLocked(context: Context): Boolean {
-        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_IS_LOCKED, false)
+        // Device hardware-binding restriction removed
+        return false
     }
 
     fun saveAgentSession(context: Context, agentId: Int, agentCode: String) {
