@@ -195,6 +195,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     for (i in 0 until casesArray.length()) {
                         assignedCases.add(casesArray.getJSONObject(i))
                     }
+                    saveCasesLocally(casesArray)
                     currentCaseIndex = 0
                     updateDebtorCard()
                 }.onFailure { err ->
@@ -202,6 +203,9 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                         SecurityManager.executeEmergencyWipeAndLock(this) {
                             showLockedScreen("Your account has been revoked by Super Admin.")
                         }
+                    } else {
+                        // Offline Fallback: Load saved cases even if internet is off
+                        loadCasesFromLocalStorage()
                     }
                 }
             }
@@ -297,7 +301,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         val phone = currentCase.getString("primary_phone")
         val agentId = SecurityManager.getAgentId(this)
 
-        // Sync disposition to Cloudflare D1
+        // Sync disposition to Cloudflare D1 or store offline if no internet
         thread {
             val payload = JSONObject().apply {
                 put("allocation_id", allocId)
@@ -306,7 +310,12 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 put("call_duration_seconds", currentCallDuration)
                 put("disposition", disposition)
             }
-            ApiClient.post("/api/calls/log", payload)
+            val res = ApiClient.post("/api/calls/log", payload)
+            if (res.isFailure) {
+                saveOfflineCallLog(payload)
+            } else {
+                syncOfflineLogsIfNeeded(agentId)
+            }
         }
 
         // Advance to next debtor in queue
@@ -356,6 +365,83 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         layoutLogin.visibility = View.VISIBLE
         layoutDialer.visibility = View.GONE
         layoutLocked.visibility = View.GONE
+    }
+
+    // ----------------------------------------------------
+    // OFFLINE CALLING & LOCAL PERSISTENCE HELPERS
+    // ----------------------------------------------------
+    private fun saveCasesLocally(casesArray: JSONArray) {
+        try {
+            val fos = openFileOutput("cached_cases.json", android.content.Context.MODE_PRIVATE)
+            fos.write(casesArray.toString().toByteArray(Charsets.UTF_8))
+            fos.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadCasesFromLocalStorage() {
+        try {
+            val fis = openFileInput("cached_cases.json")
+            val text = fis.bufferedReader().use { it.readText() }
+            val casesArray = JSONArray(text)
+            assignedCases.clear()
+            for (i in 0 until casesArray.length()) {
+                assignedCases.add(casesArray.getJSONObject(i))
+            }
+            currentCaseIndex = 0
+            handler.post {
+                updateDebtorCard()
+                Toast.makeText(this, "Offline Mode: Loaded ${assignedCases.size} cases from phone storage.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            handler.post {
+                Toast.makeText(this, "No internet and no cached cases found.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun saveOfflineCallLog(log: JSONObject) {
+        try {
+            val currentLogs = loadOfflineCallLogs()
+            currentLogs.put(log)
+            val fos = openFileOutput("offline_call_logs.json", android.content.Context.MODE_PRIVATE)
+            fos.write(currentLogs.toString().toByteArray(Charsets.UTF_8))
+            fos.close()
+            handler.post {
+                Toast.makeText(this, "Internet offline: Call outcome saved locally.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadOfflineCallLogs(): JSONArray {
+        return try {
+            val fis = openFileInput("offline_call_logs.json")
+            val text = fis.bufferedReader().use { it.readText() }
+            JSONArray(text)
+        } catch (e: Exception) {
+            JSONArray()
+        }
+    }
+
+    private fun syncOfflineLogsIfNeeded(agentId: Int) {
+        val logs = loadOfflineCallLogs()
+        if (logs.length() == 0) return
+
+        val payload = JSONObject().apply {
+            put("agent_id", agentId)
+            put("logs", logs)
+        }
+
+        val result = ApiClient.post("/api/calls/batch-sync", payload)
+        result.onSuccess {
+            deleteFile("offline_call_logs.json")
+            handler.post {
+                Toast.makeText(this, "Synced ${logs.length()} offline calls to Cloudflare D1!", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun showDialerScreen() {

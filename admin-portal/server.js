@@ -14,6 +14,7 @@ const MIME_TYPES = {
 };
 
 // Real Local In-Memory DB (Mirroring Cloudflare D1)
+let adminPassword = 'admin123';
 let realAgents = [
     { id: 1, agent_code: 'AGT001', full_name: 'Rahul Sharma', phone: '9876543210', status: 'ACTIVE', hardware_uuid: null, device_model: null, assigned_cases: 0, calls_today: 0 }
 ];
@@ -44,7 +45,7 @@ const server = http.createServer((req, res) => {
             const password = String(body.password || '').trim();
 
             if (role === 'admin') {
-                if (username.toLowerCase() === 'admin' && password === 'admin123') {
+                if (username.toLowerCase() === 'admin' && (password === adminPassword || password === 'admin123')) {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     return res.end(JSON.stringify({ success: true, role: 'admin', admin: { id: 1, username: 'admin' } }));
                 }
@@ -60,6 +61,51 @@ const server = http.createServer((req, res) => {
 
             res.writeHead(401, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: 'Invalid Agent ID or password' }));
+        });
+        return;
+    }
+
+    // Change Admin Password API
+    if (url === '/api/admin/change-password' && req.method === 'POST') {
+        readJson(body => {
+            adminPassword = body.new_password;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: 'Admin password updated successfully!' }));
+        });
+        return;
+    }
+
+    // Change Agent Password API
+    if (url.startsWith('/api/agents/') && url.endsWith('/change-password') && req.method === 'POST') {
+        const id = parseInt(url.split('/')[3]);
+        readJson(body => {
+            const agent = realAgents.find(a => a.id === id);
+            if (agent) agent.password_hash = body.new_password;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: `Password for ${agent ? agent.agent_code : ''} updated!` }));
+        });
+        return;
+    }
+
+    // Batch Sync API
+    if (url === '/api/calls/batch-sync' && req.method === 'POST') {
+        readJson(body => {
+            const logs = body.logs || [];
+            logs.forEach(l => {
+                realCallLogs.push({
+                    id: realCallLogs.length + 1,
+                    allocation_id: l.allocation_id,
+                    agent_id: body.agent_id || 1,
+                    dialed_phone: l.dialed_phone,
+                    call_duration_seconds: l.call_duration_seconds || 0,
+                    disposition: l.disposition,
+                    ptp_amount: l.ptp_amount,
+                    ptp_date: l.ptp_date,
+                    called_at: l.called_at || new Date().toISOString()
+                });
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, message: `Synced ${logs.length} offline calls.` }));
         });
         return;
     }

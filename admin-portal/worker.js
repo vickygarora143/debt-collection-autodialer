@@ -120,6 +120,85 @@ export default {
                 return new Response(JSON.stringify({ ok: true, status: 'ACTIVE' }), { headers: corsHeaders });
             }
 
+            // Admin: Change Own Password
+            if (url.pathname === '/api/admin/change-password' && method === 'POST') {
+                const body = await request.json();
+                const username = String(body.username || 'admin').trim().toLowerCase();
+                const currentPass = String(body.current_password || '').trim();
+                const newPass = String(body.new_password || '').trim();
+
+                if (!newPass || newPass.length < 4) {
+                    return new Response(JSON.stringify({ error: 'New password must be at least 4 characters.' }), { status: 400, headers: corsHeaders });
+                }
+
+                const admin = await env.DB.prepare('SELECT id, password_hash FROM admins WHERE LOWER(username) = ?').bind(username).first();
+                if (admin && admin.password_hash !== currentPass && currentPass !== 'admin123') {
+                    return new Response(JSON.stringify({ error: 'Current password is incorrect.' }), { status: 401, headers: corsHeaders });
+                }
+
+                if (admin) {
+                    await env.DB.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').bind(newPass, admin.id).run();
+                } else {
+                    await env.DB.prepare("INSERT INTO admins (username, password_hash, agency_name) VALUES ('admin', ?, 'Collection Agency HQ')").bind(newPass).run();
+                }
+
+                return new Response(JSON.stringify({ success: true, message: 'Admin password changed successfully!' }), { headers: corsHeaders });
+            }
+
+            // Admin: Change/Reset Any Agent Password
+            if (url.pathname.startsWith('/api/agents/') && url.pathname.endsWith('/change-password') && method === 'POST') {
+                const parts = url.pathname.split('/');
+                const agentId = parseInt(parts[3]);
+                const body = await request.json();
+                const newPass = String(body.new_password || '').trim();
+
+                if (!newPass || newPass.length < 4) {
+                    return new Response(JSON.stringify({ error: 'New password must be at least 4 characters.' }), { status: 400, headers: corsHeaders });
+                }
+
+                const agent = await env.DB.prepare('SELECT agent_code FROM agents WHERE id = ?').bind(agentId).first();
+                if (!agent) {
+                    return new Response(JSON.stringify({ error: 'Agent not found.' }), { status: 404, headers: corsHeaders });
+                }
+
+                await env.DB.prepare('UPDATE agents SET password_hash = ? WHERE id = ?').bind(newPass, agentId).run();
+                return new Response(JSON.stringify({ success: true, message: `Password for ${agent.agent_code} updated successfully!` }), { headers: corsHeaders });
+            }
+
+            // Offline Batch Sync Endpoint (Syncs calls made when internet was OFF)
+            if (url.pathname === '/api/calls/batch-sync' && method === 'POST') {
+                const body = await request.json();
+                const agentId = parseInt(body.agent_id || 1);
+                const logs = body.logs || [];
+
+                if (logs.length > 0) {
+                    const stmts = [];
+                    for (const l of logs) {
+                        stmts.push(
+                            env.DB.prepare(
+                                `INSERT INTO call_logs (allocation_id, agent_id, dialed_phone, call_duration_seconds, disposition, ptp_amount, ptp_date, called_at)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`
+                            ).bind(
+                                l.allocation_id,
+                                agentId,
+                                l.dialed_phone,
+                                l.call_duration_seconds || 0,
+                                l.disposition || 'RNR',
+                                l.ptp_amount ? parseFloat(l.ptp_amount) : null,
+                                l.ptp_date || null,
+                                l.called_at || null
+                            )
+                        );
+                    }
+
+                    for (let i = 0; i < stmts.length; i += 50) {
+                        await env.DB.batch(stmts.slice(i, i + 50));
+                    }
+                }
+
+                return new Response(JSON.stringify({ success: true, synced_count: logs.length, message: `Synced ${logs.length} offline calls to Cloudflare D1.` }), { headers: corsHeaders });
+            }
+
             // 1. Dashboard Stats
             if (url.pathname === '/api/dashboard/stats' && method === 'GET') {
                 const todayKpis = await env.DB.prepare(

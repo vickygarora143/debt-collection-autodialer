@@ -168,6 +168,9 @@ async function loadAgentCasesAndStats() {
         const data = await res.json();
         cockpitCases = data.cases || [];
 
+        // Save local offline copy
+        localStorage.setItem('debtflow_cached_cases_' + currentAgent.id, JSON.stringify(cockpitCases));
+
         document.getElementById('agent-stat-queue').innerText = cockpitCases.length;
 
         // Fetch dials today
@@ -181,7 +184,11 @@ async function loadAgentCasesAndStats() {
         cockpitIndex = 0;
         renderCockpitCase();
     } catch (e) {
-        console.error('Error loading cockpit:', e);
+        console.warn('Network offline or slow, loading local cached cases:', e);
+        cockpitCases = JSON.parse(localStorage.getItem('debtflow_cached_cases_' + currentAgent.id) || '[]');
+        document.getElementById('agent-stat-queue').innerText = cockpitCases.length;
+        cockpitIndex = 0;
+        renderCockpitCase();
     }
 }
 
@@ -261,22 +268,29 @@ async function logCockpitCall(disposition) {
 
     const item = cockpitCases[cockpitIndex];
     if (item && item.id > 0 && currentAgent) {
-        try {
-            await fetch('/api/calls/log', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    allocation_id: item.id,
-                    agent_id: currentAgent.id,
-                    dialed_phone: item.primary_phone,
-                    call_duration_seconds: duration,
-                    disposition: disposition,
-                    ptp_amount: disposition === 'PTP' ? item.overdue_amount : null,
-                    ptp_date: disposition === 'PTP' ? new Date(Date.now() + 86400000).toISOString().slice(0, 10) : null
-                })
-            });
-        } catch (e) {
-            console.error('Error logging call:', e);
+        const logPayload = {
+            allocation_id: item.id,
+            agent_id: currentAgent.id,
+            dialed_phone: item.primary_phone,
+            call_duration_seconds: duration,
+            disposition: disposition,
+            ptp_amount: disposition === 'PTP' ? item.overdue_amount : null,
+            ptp_date: disposition === 'PTP' ? new Date(Date.now() + 86400000).toISOString().slice(0, 10) : null,
+            called_at: new Date().toISOString()
+        };
+
+        if (navigator.onLine) {
+            try {
+                await fetch('/api/calls/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(logPayload)
+                });
+            } catch (e) {
+                saveOfflineLog(logPayload);
+            }
+        } else {
+            saveOfflineLog(logPayload);
         }
     }
 
@@ -289,6 +303,13 @@ async function logCockpitCall(disposition) {
             triggerCockpitDial();
         }
     }, 2500);
+}
+
+function saveOfflineLog(log) {
+    const logs = JSON.parse(localStorage.getItem('debtflow_offline_logs') || '[]');
+    logs.push(log);
+    localStorage.setItem('debtflow_offline_logs', JSON.stringify(logs));
+    console.log('Saved call outcome offline. Total queued for sync:', logs.length);
 }
 
 function toggleCockpitPause() {
@@ -574,6 +595,7 @@ function renderAgentsTable(agents) {
                         ? `<button onclick="toggleKillSwitch(${a.id}, 'ACTIVATE')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Restore Access</button>`
                         : `<button onclick="toggleKillSwitch(${a.id}, 'REVOKE')" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Kill-Switch</button>`
                     }
+                    <button onclick="openChangeAgentPasswordModal(${a.id}, '${a.agent_code}')" class="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-800 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Change Agent Password">Pass</button>
                     ${a.hardware_uuid ? `<button onclick="resetDevice(${a.id})" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Clear Phone Lock">Reset Lock</button>` : ''}
                 </td>
             </tr>
@@ -645,6 +667,140 @@ async function handleCreateAgent(e) {
         loadDashboardStats();
     } catch (err) {
         alert('Failed: ' + err.message);
+    }
+}
+
+// ----------------------------------------------------
+// PASSWORD MANAGEMENT (ADMIN & AGENTS)
+// ----------------------------------------------------
+function openChangeAdminPasswordModal() {
+    document.getElementById('change-admin-password-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function closeChangeAdminPasswordModal() {
+    document.getElementById('change-admin-password-modal').classList.add('hidden');
+    document.getElementById('admin-curr-pass').value = '';
+    document.getElementById('admin-new-pass').value = '';
+}
+
+async function handleChangeAdminPassword(e) {
+    e.preventDefault();
+    const currPass = document.getElementById('admin-curr-pass').value.trim();
+    const newPass = document.getElementById('admin-new-pass').value.trim();
+
+    const btn = document.getElementById('btn-admin-pass-submit');
+    btn.disabled = true;
+    btn.innerText = 'Saving...';
+
+    try {
+        const res = await fetch('/api/admin/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_password: currPass, new_password: newPass })
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('SUCCESS: ' + data.message);
+            closeChangeAdminPasswordModal();
+        }
+    } catch (err) {
+        alert('Failed to change admin password: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Save New Password';
+    }
+}
+
+function openChangeAgentPasswordModal(agentId, agentCode) {
+    document.getElementById('agent-pass-target-id').value = agentId;
+    document.getElementById('agent-pass-target-code').innerText = agentCode;
+    document.getElementById('change-agent-password-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function closeChangeAgentPasswordModal() {
+    document.getElementById('change-agent-password-modal').classList.add('hidden');
+    document.getElementById('agent-new-pass').value = '';
+}
+
+async function handleChangeAgentPassword(e) {
+    e.preventDefault();
+    const agentId = document.getElementById('agent-pass-target-id').value;
+    const newPass = document.getElementById('agent-new-pass').value.trim();
+
+    const btn = document.getElementById('btn-agent-pass-submit');
+    btn.disabled = true;
+    btn.innerText = 'Updating...';
+
+    try {
+        const res = await fetch(`/api/agents/${agentId}/change-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_password: newPass })
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('SUCCESS: ' + data.message);
+            closeChangeAgentPasswordModal();
+        }
+    } catch (err) {
+        alert('Failed to update agent password: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Update Password';
+    }
+}
+
+// ----------------------------------------------------
+// OFFLINE NETWORK STATUS & CALL SYNCING
+// ----------------------------------------------------
+window.addEventListener('online', () => {
+    updateNetworkStatusUI(true);
+    syncOfflineCalls();
+});
+
+window.addEventListener('offline', () => {
+    updateNetworkStatusUI(false);
+});
+
+function updateNetworkStatusUI(isOnline) {
+    const badge = document.getElementById('agent-network-badge');
+    if (!badge) return;
+
+    if (isOnline) {
+        badge.className = 'px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1';
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online';
+    } else {
+        badge.className = 'px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold flex items-center gap-1';
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Offline (SIM Active)';
+    }
+}
+
+async function syncOfflineCalls() {
+    const offlineLogs = JSON.parse(localStorage.getItem('debtflow_offline_logs') || '[]');
+    if (offlineLogs.length === 0 || !currentAgent) return;
+
+    try {
+        const res = await fetch('/api/calls/batch-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agent_id: currentAgent.id,
+                logs: offlineLogs
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            console.log(`Synced ${offlineLogs.length} offline calls to Cloudflare D1.`);
+            localStorage.removeItem('debtflow_offline_logs');
+        }
+    } catch (e) {
+        console.warn('Sync attempt postponed:', e);
     }
 }
 
