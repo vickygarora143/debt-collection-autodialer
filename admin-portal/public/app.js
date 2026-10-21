@@ -158,6 +158,63 @@ async function initAgentCockpit() {
     document.getElementById('agent-cockpit-name').innerText = currentAgent.full_name || 'Telecaller Staff';
 
     loadAgentCasesAndStats();
+
+    // Auto-refresh queue in background every 20 seconds so PC uploads reflect instantly without logging out
+    if (window.agentQueueInterval) clearInterval(window.agentQueueInterval);
+    window.agentQueueInterval = setInterval(() => {
+        if (currentAgent && !cockpitCalling) {
+            loadAgentCasesAndStats(true);
+        }
+    }, 20000);
+}
+
+async function refreshAgentQueue() {
+    const btn = document.getElementById('btn-refresh-queue');
+    if (btn) btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin"></i> Refreshing...`;
+    await loadAgentCasesAndStats();
+    if (btn) {
+        btn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i> Updated!`;
+        setTimeout(() => {
+            btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh`;
+            if (window.lucide) lucide.createIcons();
+        }, 1500);
+    }
+}
+
+async function exportAgentFeedback() {
+    if (!currentAgent) return;
+    try {
+        const res = await fetch(`/api/reports/agent-export?agent_id=${currentAgent.id}`);
+        const data = await res.json();
+        const records = data.records || [];
+        if (records.length === 0) {
+            alert('No call records logged yet for this shift.');
+            return;
+        }
+
+        const headers = ["Timestamp", "Customer Name", "Phone", "Loan Account", "Duration (sec)", "Disposition", "PTP Amount", "PTP Date"];
+        const rows = records.map(r => [
+            `"${r.called_at}"`,
+            `"${r.customer_name || ''}"`,
+            `"${r.dialed_phone}"`,
+            `"${r.loan_account_no || ''}"`,
+            r.call_duration_seconds || 0,
+            `"${r.disposition || ''}"`,
+            r.ptp_amount || 0,
+            `"${r.ptp_date || ''}"`
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `My_Feedback_${currentAgent.agent_code}_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (e) {
+        alert('Failed to export feedback: ' + e.message);
+    }
 }
 
 async function loadAgentCasesAndStats() {

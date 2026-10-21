@@ -365,7 +365,7 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // 6. AGENT SELF-ALLOCATION UPLOAD (NEW FEATURE)
+            // 6. AGENT SELF-ALLOCATION UPLOAD
             // Allows telecallers to upload their OWN leads directly from mobile/WhatsApp/file
             if (url.pathname === '/api/allocations/upload-agent' && method === 'POST') {
                 const body = await request.json();
@@ -381,6 +381,9 @@ export default {
                 if (!agent || agent.status === 'REVOKED') {
                     return new Response(JSON.stringify({ error: 'Agent account is inactive or revoked.' }), { status: 403, headers: corsHeaders });
                 }
+
+                // Point 7: Automatic clean slate - Archive previous pending cases for this agent
+                await env.DB.prepare("UPDATE allocations SET status = 'ARCHIVED' WHERE assigned_agent_id = ? AND status = 'PENDING'").bind(agentId).run();
 
                 const batchName = `SelfUpload_${agent.agent_code}_${new Date().toISOString().slice(0, 10)}`;
                 const statements = [];
@@ -418,8 +421,33 @@ export default {
                     success: true,
                     total_cases: statements.length,
                     batch_name: batchName,
-                    message: `Successfully loaded ${statements.length} personal cases into your dialer queue!`
+                    message: `Cleared previous queue and loaded ${statements.length} fresh cases into your dialer!`
                 }), { headers: corsHeaders });
+            }
+
+            // Version Check API for in-app auto updates (Point 6)
+            if (url.pathname === '/api/version' && method === 'GET') {
+                return new Response(JSON.stringify({
+                    versionCode: 2,
+                    versionName: "1.0.2",
+                    apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.0.apk",
+                    changelog: "Pristine Light Theme, Smart Call Detection, Auto-Refresh Queue, In-App Feedback Export, Truecaller overlay bypass."
+                }), { headers: corsHeaders });
+            }
+
+            // Agent Shift Feedback Export (Point 2)
+            if (url.pathname === '/api/reports/agent-export' && method === 'GET') {
+                const agentId = parseInt(url.searchParams.get('agent_id') || '0');
+                const { results } = await env.DB.prepare(
+                    `SELECT cl.called_at, al.customer_name, cl.dialed_phone, al.loan_account_no, 
+                            cl.call_duration_seconds, cl.disposition, cl.ptp_amount, cl.ptp_date
+                     FROM call_logs cl
+                     JOIN allocations al ON al.id = cl.allocation_id
+                     WHERE cl.agent_id = ?
+                     ORDER BY cl.called_at DESC LIMIT 500`
+                ).bind(agentId).all();
+
+                return new Response(JSON.stringify({ records: results || [] }), { headers: corsHeaders });
             }
 
             // 7. Agent Cases Queue
@@ -428,7 +456,7 @@ export default {
                 const { results } = await env.DB.prepare(
                     `SELECT id, customer_name, loan_account_no, primary_phone, overdue_amount, dpd, bucket, status 
                      FROM allocations 
-                     WHERE assigned_agent_id = ? AND status != 'RESOLVED'
+                     WHERE assigned_agent_id = ? AND status NOT IN ('RESOLVED', 'ARCHIVED')
                      ORDER BY id ASC LIMIT 300`
                 ).bind(agentId).all();
 

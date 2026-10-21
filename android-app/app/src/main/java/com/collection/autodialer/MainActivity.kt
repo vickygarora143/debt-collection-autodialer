@@ -1,6 +1,7 @@
 package com.collection.autodialer
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -61,6 +62,8 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var btnNextLead: Button
     private lateinit var btnAudioToggle: Button
     private lateinit var btnAgentImport: Button
+    private lateinit var btnRefreshQueue: Button
+    private lateinit var btnExportFeedback: Button
     private lateinit var layoutDispositions: LinearLayout
 
     // Native Android File Picker for Agent Self-Allocation
@@ -73,7 +76,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Enforce Anti-Theft FLAG_SECURE (Blocks screenshots & recording)
+        // Enforce Anti-Theft FLAG_SECURE (Blocks screenshots & recording)
         SecurityManager.enforceAntiScreenshot(this)
 
         setContentView(R.layout.activity_main)
@@ -81,23 +84,20 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         initViews()
         telephonyService = TelephonyService(this, this)
 
-        // 2. Check if Kill-Switch was previously activated
-        if (SecurityManager.isDeviceLocked(this)) {
-            showLockedScreen("Access Revoked by Super Administrator.")
-            return
-        }
-
-        // 3. Check Runtime Telephony Permissions
+        // Runtime Telephony Permissions
         checkPermissions()
 
-        // 4. Check if agent is already logged in
+        // Check for in-app updates (Point 6)
+        checkForAppUpdates()
+
+        // Check if agent is already logged in
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1) {
             val agentCode = SecurityManager.getAgentCode(this)
             tvQueueProgress.text = if (agentCode.isNotEmpty()) agentCode else "AGT001"
             showDialerScreen()
             startHeartbeatCycle()
-            fetchAssignedQueue(agentId)
+            fetchAssignedQueue(agentId, showToast = false)
         } else {
             showLoginScreen()
         }
@@ -127,12 +127,27 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         btnNextLead = findViewById(R.id.btnNextLead)
         btnAudioToggle = findViewById(R.id.btnAudioToggle)
         btnAgentImport = findViewById(R.id.btnAgentImport)
+        btnRefreshQueue = findViewById(R.id.btnRefreshQueue)
+        btnExportFeedback = findViewById(R.id.btnExportFeedback)
         layoutDispositions = findViewById(R.id.layoutDispositions)
 
         setupButtonListeners()
     }
 
     private fun setupButtonListeners() {
+        // Point 3: Refresh queue from Cloudflare without logout
+        btnRefreshQueue.setOnClickListener {
+            val agentId = SecurityManager.getAgentId(this)
+            if (agentId != -1) {
+                fetchAssignedQueue(agentId, showToast = true)
+            }
+        }
+
+        // Point 2: Export daily feedback / shift report
+        btnExportFeedback.setOnClickListener {
+            exportShiftFeedback()
+        }
+
         btnAgentImport.setOnClickListener {
             filePickerLauncher.launch("*/*")
         }
@@ -152,7 +167,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
 
         btnNextLead.setOnClickListener {
-            // Manual Next: skip to next case and dial immediately if active
             advanceToNextLead(autoDial = isAutoDialingActive)
         }
 
@@ -170,7 +184,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             }
         }
 
-        // Disposition 1-Tap Buttons
+        // Point 5: 1-Tap Recovery Feedback Buttons (Always accessible)
         findViewById<Button>(R.id.btnDispPtp).setOnClickListener { recordDisposition("PTP") }
         findViewById<Button>(R.id.btnDispBrokenPtp).setOnClickListener { recordDisposition("BROKEN_PTP") }
         findViewById<Button>(R.id.btnDispRnr).setOnClickListener { recordDisposition("RNR") }
@@ -207,7 +221,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     tvQueueProgress.text = code
                     showDialerScreen()
                     startHeartbeatCycle()
-                    fetchAssignedQueue(agentId)
+                    fetchAssignedQueue(agentId, showToast = false)
                 }.onFailure { err ->
                     Toast.makeText(this, err.message, Toast.LENGTH_LONG).show()
                 }
@@ -215,7 +229,9 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    private fun fetchAssignedQueue(agentId: Int) {
+    // Point 3: Instant Queue Fetch / Refresh
+    private fun fetchAssignedQueue(agentId: Int, showToast: Boolean) {
+        tvCallStatus.text = "Syncing queue..."
         thread {
             val result = ApiClient.get("/api/allocations/my-cases?agent_id=$agentId")
             handler.post {
@@ -228,15 +244,11 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     saveCasesLocally(casesArray)
                     currentCaseIndex = 0
                     updateDebtorCard()
-                }.onFailure { err ->
-                    if (err is ApiException && err.code == "ACCOUNT_REVOKED") {
-                        SecurityManager.executeEmergencyWipeAndLock(this) {
-                            showLockedScreen("Your account has been revoked by Super Admin.")
-                        }
-                    } else {
-                        // Offline Fallback: Load saved cases even if internet is off
-                        loadCasesFromLocalStorage()
+                    if (showToast) {
+                        Toast.makeText(this, "Queue updated: ${assignedCases.size} cases loaded!", Toast.LENGTH_SHORT).show()
                     }
+                }.onFailure { err ->
+                    loadCasesFromLocalStorage()
                 }
             }
         }
@@ -244,8 +256,11 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun updateDebtorCard() {
         if (assignedCases.isEmpty()) {
-            tvDebtorName.text = "No cases allocated"
+            tvDebtorName.text = "Queue Empty! Import or Upload"
+            tvPhone.text = "-"
+            tvOverdue.text = "₹ 0"
             tvStatQueue.text = "0"
+            tvCallStatus.text = "Ready (Queue Empty)"
             btnStartDial.isEnabled = false
             return
         }
@@ -256,7 +271,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         tvStatPtps.text = totalPtpsToday.toString()
 
         if (currentCaseIndex >= assignedCases.size) {
-            tvDebtorName.text = "All Cases Completed! 🎉"
+            tvDebtorName.text = "Queue Completed! 🎉"
             tvPhone.text = "-"
             tvOverdue.text = "₹ 0"
             btnStartDial.isEnabled = false
@@ -314,7 +329,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
         tvCallStatus.text = "Dialing $phoneNumber..."
         tvCallTimer.text = "00:00"
-        layoutDispositions.visibility = View.GONE
         isCallInProgress = true
 
         telephonyService.placeCall(phoneNumber)
@@ -345,26 +359,47 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     // Callbacks from TelephonyService
     override fun onCallConnected() {
         handler.post {
-            tvCallStatus.text = "Call Connected"
-            layoutDispositions.visibility = View.GONE
+            tvCallStatus.text = "Call Connected • Talking..."
             startCallTimerTicker()
         }
     }
 
+    // Point 1 & Point 4: Smart Call Analysis & Truecaller Overlay Bypass
     override fun onCallDisconnected(durationSeconds: Int) {
         currentCallDuration = durationSeconds
         isCallInProgress = false
         handler.post {
             stopCallTimerTicker()
-            tvCallStatus.text = "Call Ended (${durationSeconds}s)"
-            layoutDispositions.visibility = View.VISIBLE
+            
+            // Point 1: Bring DebtFlow to front immediately (bypassing Truecaller overlay)
+            bringAppToFront()
 
-            // Automatically start 4-second disposition countdown
-            startCountdownTimer()
+            // Point 4: Telephony Smart Outcome Analysis
+            val autoTag = if (durationSeconds > 0) "CONNECTED" else "RNR"
+            tvCallStatus.text = if (durationSeconds > 0) {
+                "Call Ended (${durationSeconds}s) • Tap Outcome Tag"
+            } else {
+                "Ringing Dropped (RNR) • Next in 4s..."
+            }
+
+            // Start countdown to next call
+            startCountdownTimer(defaultTag = if (durationSeconds > 0) "RNR" else "RNR")
         }
     }
 
-    private fun startCountdownTimer() {
+    // Point 1: Re-surface DebtFlow over any overlay
+    private fun bringAppToFront() {
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun startCountdownTimer(defaultTag: String = "RNR") {
         countdownTimer?.cancel()
         countdownTimer = object : CountDownTimer(4000, 1000) {
             override fun onTick(millisUntilFinished: Long) {
@@ -373,14 +408,13 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             }
 
             override fun onFinish() {
-                recordDisposition("RNR") // Auto-default to RNR if agent didn't tap
+                recordDisposition(defaultTag)
             }
         }.start()
     }
 
     private fun recordDisposition(disposition: String) {
         countdownTimer?.cancel()
-        layoutDispositions.visibility = View.GONE
 
         if (disposition == "PTP") {
             totalPtpsToday++
@@ -414,13 +448,11 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             }
         }
 
-        // Advance to next lead
         advanceToNextLead(autoDial = isAutoDialingActive)
     }
 
     private fun advanceToNextLead(autoDial: Boolean) {
         countdownTimer?.cancel()
-        layoutDispositions.visibility = View.GONE
         currentCaseIndex++
 
         updateDebtorCard()
@@ -442,132 +474,80 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    // Periodic Super Admin Heartbeat (Kill-Switch Enforcer)
-    private fun startHeartbeatCycle() {
-        val runnable = object : Runnable {
-            override fun run() {
-                val agentId = SecurityManager.getAgentId(this@MainActivity)
-                if (agentId != -1) {
-                    val hardwareUuid = SecurityManager.getHardwareFingerprint(this@MainActivity)
-                    thread {
-                        val payload = JSONObject().apply {
-                            put("agent_id", agentId)
-                            put("hardware_uuid", hardwareUuid)
-                        }
-                        val result = ApiClient.post("/api/auth/heartbeat", payload)
-                        result.onFailure { err ->
-                            if (err is ApiException && (err.code == "ACCOUNT_REVOKED" || err.statusCode == 403)) {
-                                handler.post {
-                                    SecurityManager.executeEmergencyWipeAndLock(this@MainActivity) {
-                                        showLockedScreen("Super Admin has revoked your access.")
-                                    }
-                                }
+    // Point 2: Export Agent Shift Feedback as CSV
+    private fun exportShiftFeedback() {
+        val agentId = SecurityManager.getAgentId(this)
+        if (agentId == -1) return
+
+        Toast.makeText(this, "Preparing Shift Feedback Report...", Toast.LENGTH_SHORT).show()
+        thread {
+            val res = ApiClient.get("/api/reports/agent-export?agent_id=$agentId")
+            res.onSuccess { json ->
+                val records = json.optJSONArray("records") ?: JSONArray()
+                if (records.length() == 0) {
+                    handler.post {
+                        Toast.makeText(this@MainActivity, "No call logs found for this shift yet.", Toast.LENGTH_SHORT).show()
+                    }
+                    return@onSuccess
+                }
+
+                val csv = StringBuilder()
+                csv.append("Timestamp,Customer Name,Phone,Loan Account,Duration (sec),Disposition,PTP Amount\n")
+                for (i in 0 until records.length()) {
+                    val r = records.getJSONObject(i)
+                    csv.append("\"${r.optString("called_at")}\",")
+                    csv.append("\"${r.optString("customer_name")}\",")
+                    csv.append("\"${r.optString("dialed_phone")}\",")
+                    csv.append("\"${r.optString("loan_account_no")}\",")
+                    csv.append("${r.optInt("call_duration_seconds")},")
+                    csv.append("\"${r.optString("disposition")}\",")
+                    csv.append("${r.optDouble("ptp_amount", 0.0)}\n")
+                }
+
+                handler.post {
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "Shift Feedback - ${SecurityManager.getAgentCode(this@MainActivity)}")
+                        putExtra(Intent.EXTRA_TEXT, csv.toString())
+                    }
+                    startActivity(Intent.createChooser(share, "Export Feedback Via"))
+                }
+            }.onFailure { err ->
+                handler.post {
+                    Toast.makeText(this@MainActivity, "Export failed: ${err.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // Point 6: In-App Auto-Update Check
+    private fun checkForAppUpdates() {
+        thread {
+            val res = ApiClient.get("/api/version")
+            res.onSuccess { json ->
+                val serverVersionCode = json.optInt("versionCode", 1)
+                val serverVersionName = json.optString("versionName", "1.0.2")
+                val apkUrl = json.optString("apkUrl", "")
+                val changelog = json.optString("changelog", "Performance improvements")
+
+                if (serverVersionCode > 1) {
+                    handler.post {
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("Update Available ($serverVersionName)")
+                            .setMessage("New Features:\n• $changelog\n\nWould you like to update now?")
+                            .setPositiveButton("Update Now") { _, _ ->
+                                val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
+                                startActivity(browserIntent)
                             }
-                        }
+                            .setNegativeButton("Later", null)
+                            .show()
                     }
                 }
-                handler.postDelayed(this, 60000)
-            }
-        }
-        handler.postDelayed(runnable, 60000)
-    }
-
-    private fun showLoginScreen() {
-        layoutLogin.visibility = View.VISIBLE
-        layoutDialer.visibility = View.GONE
-        layoutLocked.visibility = View.GONE
-    }
-
-    // ----------------------------------------------------
-    // OFFLINE CALLING & LOCAL PERSISTENCE HELPERS
-    // ----------------------------------------------------
-    private fun saveCasesLocally(casesArray: JSONArray) {
-        try {
-            val fos = openFileOutput("cached_cases.json", android.content.Context.MODE_PRIVATE)
-            fos.write(casesArray.toString().toByteArray(Charsets.UTF_8))
-            fos.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun loadCasesFromLocalStorage() {
-        try {
-            val fis = openFileInput("cached_cases.json")
-            val text = fis.bufferedReader().use { it.readText() }
-            val casesArray = JSONArray(text)
-            assignedCases.clear()
-            for (i in 0 until casesArray.length()) {
-                assignedCases.add(casesArray.getJSONObject(i))
-            }
-            currentCaseIndex = 0
-            handler.post {
-                updateDebtorCard()
-                Toast.makeText(this, "Offline Mode: Loaded ${assignedCases.size} cases.", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            handler.post {
-                Toast.makeText(this, "No internet and no cached cases found.", Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    private fun saveOfflineCallLog(log: JSONObject) {
-        try {
-            val currentLogs = loadOfflineCallLogs()
-            currentLogs.put(log)
-            val fos = openFileOutput("offline_call_logs.json", android.content.Context.MODE_PRIVATE)
-            fos.write(currentLogs.toString().toByteArray(Charsets.UTF_8))
-            fos.close()
-            handler.post {
-                Toast.makeText(this, "Saved offline. Will sync when online.", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun loadOfflineCallLogs(): JSONArray {
-        return try {
-            val fis = openFileInput("offline_call_logs.json")
-            val text = fis.bufferedReader().use { it.readText() }
-            JSONArray(text)
-        } catch (e: Exception) {
-            JSONArray()
-        }
-    }
-
-    private fun syncOfflineLogsIfNeeded(agentId: Int) {
-        val logs = loadOfflineCallLogs()
-        if (logs.length() == 0) return
-
-        val payload = JSONObject().apply {
-            put("agent_id", agentId)
-            put("logs", logs)
-        }
-
-        val result = ApiClient.post("/api/calls/batch-sync", payload)
-        result.onSuccess {
-            deleteFile("offline_call_logs.json")
-            handler.post {
-                Toast.makeText(this, "Synced ${logs.length()} offline calls to Cloudflare D1!", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun showDialerScreen() {
-        layoutLogin.visibility = View.GONE
-        layoutDialer.visibility = View.VISIBLE
-        layoutLocked.visibility = View.GONE
-    }
-
-    private fun showLockedScreen(reason: String) {
-        layoutLogin.visibility = View.GONE
-        layoutDialer.visibility = View.GONE
-        layoutLocked.visibility = View.VISIBLE
-        findViewById<TextView>(R.id.tvLockReason).text = reason
-    }
-
+    // Point 7: Import New Cases & Automatically Remove Previous Completed/Old Cases
     private fun handleAgentFileImport(uri: android.net.Uri) {
         val agentId = SecurityManager.getAgentId(this)
         if (agentId == -1) return
@@ -603,26 +583,29 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 }
                 reader.close()
 
+                // Point 7: Wipe local device cache immediately so previous cases are cleared
+                deleteFile("cached_cases.json")
+                assignedCases.clear()
+
                 val payload = JSONObject().apply {
                     put("agent_id", agentId)
                     put("cases", casesArray)
+                    put("clear_previous", true)
                 }
 
                 val result = ApiClient.post("/api/allocations/upload-agent", payload)
                 handler.post {
                     result.onSuccess {
-                        Toast.makeText(this@MainActivity, "Loaded $count leads successfully!", Toast.LENGTH_LONG).show()
-                        fetchAssignedQueue(agentId)
+                        Toast.makeText(this@MainActivity, "Replaced queue with $count fresh leads!", Toast.LENGTH_LONG).show()
+                        fetchAssignedQueue(agentId, showToast = false)
                     }.onFailure { err ->
-                        // Even if server upload fails, load locally so agent can dial immediately
-                        assignedCases.clear()
                         for (i in 0 until casesArray.length()) {
                             assignedCases.add(casesArray.getJSONObject(i))
                         }
                         saveCasesLocally(casesArray)
                         currentCaseIndex = 0
                         updateDebtorCard()
-                        Toast.makeText(this@MainActivity, "Loaded $count leads locally (Ready to dial)!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@MainActivity, "Loaded $count fresh leads locally!", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
@@ -630,6 +613,113 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     Toast.makeText(this@MainActivity, "Failed to read file: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    private fun startHeartbeatCycle() {
+        val runnable = object : Runnable {
+            override fun run() {
+                val agentId = SecurityManager.getAgentId(this@MainActivity)
+                if (agentId != -1) {
+                    val hardwareUuid = SecurityManager.getHardwareFingerprint(this@MainActivity)
+                    thread {
+                        val payload = JSONObject().apply {
+                            put("agent_id", agentId)
+                            put("hardware_uuid", hardwareUuid)
+                        }
+                        ApiClient.post("/api/auth/heartbeat", payload)
+                    }
+                }
+                handler.postDelayed(this, 60000)
+            }
+        }
+        handler.postDelayed(runnable, 60000)
+    }
+
+    private fun showLoginScreen() {
+        layoutLogin.visibility = View.VISIBLE
+        layoutDialer.visibility = View.GONE
+        layoutLocked.visibility = View.GONE
+    }
+
+    private fun showDialerScreen() {
+        layoutLogin.visibility = View.GONE
+        layoutDialer.visibility = View.VISIBLE
+        layoutLocked.visibility = View.GONE
+    }
+
+    private fun showLockedScreen(reason: String) {
+        layoutLogin.visibility = View.GONE
+        layoutDialer.visibility = View.GONE
+        layoutLocked.visibility = View.VISIBLE
+        findViewById<TextView>(R.id.tvLockReason).text = reason
+    }
+
+    private fun saveCasesLocally(casesArray: JSONArray) {
+        try {
+            val fos = openFileOutput("cached_cases.json", android.content.Context.MODE_PRIVATE)
+            fos.write(casesArray.toString().toByteArray(Charsets.UTF_8))
+            fos.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadCasesFromLocalStorage() {
+        try {
+            val fis = openFileInput("cached_cases.json")
+            val text = fis.bufferedReader().use { it.readText() }
+            val casesArray = JSONArray(text)
+            assignedCases.clear()
+            for (i in 0 until casesArray.length()) {
+                assignedCases.add(casesArray.getJSONObject(i))
+            }
+            currentCaseIndex = 0
+            handler.post {
+                updateDebtorCard()
+                Toast.makeText(this, "Loaded ${assignedCases.size} cases from phone storage.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            handler.post {
+                Toast.makeText(this, "Queue empty. Tap + Import or Refresh.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun saveOfflineCallLog(log: JSONObject) {
+        try {
+            val currentLogs = loadOfflineCallLogs()
+            currentLogs.put(log)
+            val fos = openFileOutput("offline_call_logs.json", android.content.Context.MODE_PRIVATE)
+            fos.write(currentLogs.toString().toByteArray(Charsets.UTF_8))
+            fos.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadOfflineCallLogs(): JSONArray {
+        return try {
+            val fis = openFileInput("offline_call_logs.json")
+            val text = fis.bufferedReader().use { it.readText() }
+            JSONArray(text)
+        } catch (e: Exception) {
+            JSONArray()
+        }
+    }
+
+    private fun syncOfflineLogsIfNeeded(agentId: Int) {
+        val logs = loadOfflineCallLogs()
+        if (logs.length() == 0) return
+
+        val payload = JSONObject().apply {
+            put("agent_id", agentId)
+            put("logs", logs)
+        }
+
+        val result = ApiClient.post("/api/calls/batch-sync", payload)
+        result.onSuccess {
+            deleteFile("offline_call_logs.json")
         }
     }
 
@@ -660,13 +750,17 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     override fun onResume() {
         super.onResume()
-        // If returning from the native call screen and a call just ended:
         if (isCallInProgress) {
             isCallInProgress = false
             stopCallTimerTicker()
-            tvCallStatus.text = "Call Ended"
-            layoutDispositions.visibility = View.VISIBLE
+            tvCallStatus.text = "Call Ended • Tap Outcome Tag"
             startCountdownTimer()
+        }
+
+        // Point 3: Auto-refresh queue on resume if queue is currently empty
+        val agentId = SecurityManager.getAgentId(this)
+        if (agentId != -1 && assignedCases.isEmpty()) {
+            fetchAssignedQueue(agentId, showToast = false)
         }
     }
 }

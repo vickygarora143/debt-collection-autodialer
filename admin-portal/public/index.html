@@ -394,13 +394,21 @@
                 </div>
             </div>
 
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-1.5">
+                <!-- Refresh Queue Button (Point 3) -->
+                <button onclick="refreshAgentQueue()" id="btn-refresh-queue" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm" title="Refresh newly allocated cases">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                </button>
+                <!-- Export Feedback Button (Point 2) -->
+                <button onclick="exportAgentFeedback()" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1 shadow-sm" title="Download my shift call logs">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Feedback
+                </button>
                 <!-- Self-Upload Button -->
                 <button onclick="openAgentUploadModal()" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition flex items-center gap-1 shadow-sm">
                     <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> Import List
                 </button>
                 <!-- Audio Switcher -->
-                <button onclick="toggleSimAudio()" id="cockpit-audio-btn" class="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-emerald-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm">
+                <button onclick="toggleSimAudio()" id="cockpit-audio-btn" class="px-2 py-1.5 bg-white hover:bg-slate-50 text-emerald-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm">
                     <i data-lucide="headphones" class="w-3.5 h-3.5"></i> Earphone
                 </button>
                 <!-- Logout -->
