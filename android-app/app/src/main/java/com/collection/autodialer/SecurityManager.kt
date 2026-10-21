@@ -39,7 +39,13 @@ object SecurityManager {
     }
 
     fun getDeviceModelName(): String {
-        return "${Build.MANUFACTURER.capitalize()} ${Build.MODEL}"
+        val manufacturer = Build.MANUFACTURER ?: "Android"
+        val formattedMfr = if (manufacturer.isNotEmpty()) {
+            manufacturer.substring(0, 1).uppercase() + manufacturer.substring(1)
+        } else {
+            manufacturer
+        }
+        return "$formattedMfr ${Build.MODEL ?: "Device"}"
     }
 
     // 3. Remote Kill-Switch Local Execution (Wipe & Lock)

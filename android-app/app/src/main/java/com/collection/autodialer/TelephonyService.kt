@@ -34,11 +34,22 @@ class TelephonyService(private val context: Context, private val listener: CallS
     // 1. Direct Cellular SIM Calling
     fun placeCall(phoneNumber: String) {
         val cleanNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
-        val callIntent = Intent(Intent.ACTION_CALL).apply {
-            data = Uri.parse("tel:$cleanNumber")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            val callIntent = Intent(Intent.ACTION_CALL).apply {
+                data = Uri.parse("tel:$cleanNumber")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(callIntent)
+        } catch (e: SecurityException) {
+            // Safe fallback if CALL_PHONE permission not yet granted
+            val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                data = Uri.parse("tel:$cleanNumber")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(dialIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        context.startActivity(callIntent)
     }
 
     // 2. Audio Output Routing (Headset / Speaker / Handset)
@@ -60,25 +71,35 @@ class TelephonyService(private val context: Context, private val listener: CallS
     }
 
     // 3. Telephony State Monitoring across Android versions
-    private fun registerCallStateListener() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            telephonyManager.registerTelephonyCallback(
-                context.mainExecutor,
-                object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-                    override fun onCallStateChanged(state: Int) {
+    fun ensureListenerRegistered() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                telephonyManager.registerTelephonyCallback(
+                    context.mainExecutor,
+                    object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                        override fun onCallStateChanged(state: Int) {
+                            handleStateChange(state)
+                        }
+                    }
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                telephonyManager.listen(object : PhoneStateListener() {
+                    @Deprecated("Deprecated in Java")
+                    override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                         handleStateChange(state)
                     }
-                }
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            telephonyManager.listen(object : PhoneStateListener() {
-                @Deprecated("Deprecated in Java")
-                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-                    handleStateChange(state)
-                }
-            }, PhoneStateListener.LISTEN_CALL_STATE)
+                }, PhoneStateListener.LISTEN_CALL_STATE)
+            }
+        } catch (e: SecurityException) {
+            // Permission pending from user; will be registered once permission granted
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+    }
+
+    private fun registerCallStateListener() {
+        ensureListenerRegistered()
     }
 
     private fun handleStateChange(state: Int) {
