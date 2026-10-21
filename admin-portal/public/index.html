@@ -395,6 +395,10 @@
             </div>
 
             <div class="flex items-center space-x-1.5">
+                <!-- App Download / Version Badge -->
+                <a href="/DebtFlow-AutoDialer-v1.0.apk" download class="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200 transition flex items-center gap-1 shadow-sm" title="Download latest Android v1.0.3 APK">
+                    <i data-lucide="smartphone" class="w-3.5 h-3.5 text-indigo-600"></i> v1.0.3 APK
+                </a>
                 <!-- Refresh Queue Button (Point 3) -->
                 <button onclick="refreshAgentQueue()" id="btn-refresh-queue" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm" title="Refresh newly allocated cases">
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
@@ -469,6 +473,19 @@
                     <div class="font-mono text-slate-700" id="cockpit-call-timer">00:00</div>
                 </div>
 
+                <!-- Auto-SMS on Dial & Template Controls -->
+                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" id="cockpit-auto-sms" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 accent-emerald-600" checked onchange="toggleAutoSmsPref(this.checked)">
+                        <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="message-square" class="w-3.5 h-3.5 text-emerald-600"></i> Auto-SMS on Call
+                        </span>
+                    </label>
+                    <button onclick="openSmsTemplateModal()" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1.5 shadow-sm">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5 text-blue-600"></i> Template
+                    </button>
+                </div>
+
                 <!-- 1-Tap Recovery Tagging Grid -->
                 <div class="space-y-1.5 pt-1">
                     <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">1-Touch Outcome Tag</div>
@@ -496,8 +513,71 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- MODALS: CREATE AGENT & AGENT SELF-ALLOCATION             -->
+    <!-- MODALS: SMS TEMPLATES, CREATE AGENT & SELF-ALLOCATION    -->
     <!-- ======================================================== -->
+
+    <!-- SMS Template Settings Modal -->
+    <div id="sms-template-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                        <i data-lucide="message-square" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">SMS Notification Templates</h3>
+                        <p class="text-[11px] text-slate-500">Auto-sent via SIM when dialing debtor leads</p>
+                    </div>
+                </div>
+                <button onclick="closeSmsTemplateModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Template 1: Detailed -->
+            <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Template 1: With Details (Name & Amount)
+                    </label>
+                    <span class="text-[10px] text-slate-400 font-mono">Tags: {NAME}, {AMOUNT}, {AGENT_PHONE}</span>
+                </div>
+                <textarea id="template-detailed-input" rows="3" oninput="renderSmsTemplatePreview()" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 font-sans"></textarea>
+                <div class="text-[10px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span class="font-bold text-slate-700">Live Preview: </span><span id="preview-template-detailed" class="text-slate-600"></span>
+                </div>
+            </div>
+
+            <!-- Template 2: Bulk Number Only -->
+            <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Template 2: Bulk / Number Only (No Name/Amount)
+                    </label>
+                    <span class="text-[10px] text-slate-400 font-mono">Tags: {AGENT_PHONE}</span>
+                </div>
+                <textarea id="template-bulk-input" rows="3" oninput="renderSmsTemplatePreview()" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 font-sans"></textarea>
+                <div class="text-[10px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span class="font-bold text-slate-700">Live Preview: </span><span id="preview-template-bulk" class="text-slate-600"></span>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                <button onclick="resetSmsTemplates()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+                    Reset Defaults
+                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="closeSmsTemplateModal()" class="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition">
+                        Cancel
+                    </button>
+                    <button onclick="saveSmsTemplates()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5">
+                        <i data-lucide="check" class="w-4 h-4"></i> Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Create Agent Modal -->
     <div id="create-agent-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">

@@ -250,6 +250,12 @@ async function loadAgentCasesAndStats() {
 }
 
 function renderCockpitCase() {
+    // Sync Auto-SMS preference checkbox
+    const autoSmsBox = document.getElementById('cockpit-auto-sms');
+    if (autoSmsBox) {
+        autoSmsBox.checked = getAgentSmsTemplates().autoSms;
+    }
+
     if (cockpitCases.length === 0) {
         document.getElementById('cockpit-case-name').innerText = "Queue Empty! Import leads above";
         document.getElementById('cockpit-case-loan').innerText = "Loan Acc: -";
@@ -290,13 +296,38 @@ function triggerCockpitDial() {
         return;
     }
 
+    const item = cockpitCases[cockpitIndex];
     cockpitCalling = true;
     cockpitTimerSecs = 0;
     const btn = document.getElementById('cockpit-dial-btn');
     btn.classList.replace('bg-emerald-600', 'bg-rose-600');
     btn.classList.replace('hover:bg-emerald-700', 'hover:bg-rose-700');
     btn.innerHTML = `<i data-lucide="phone-off" class="w-5 h-5"></i> End Call`;
-    document.getElementById('cockpit-call-status-text').innerText = `Calling SIM 1 (${cockpitAudioMode})...`;
+
+    // Process Auto-SMS on Call
+    const autoSmsChecked = document.getElementById('cockpit-auto-sms') ? document.getElementById('cockpit-auto-sms').checked : true;
+    let smsStatusNote = "";
+    if (autoSmsChecked && item) {
+        const tmpls = getAgentSmsTemplates();
+        const agentPhone = currentAgent ? (currentAgent.phone || currentAgent.agent_id || 'Officer') : 'Officer';
+        const isBulk = !item.customer_name || item.customer_name.startsWith('Lead #') || item.customer_name.startsWith('Personal Debtor Lead');
+        
+        let smsText = isBulk ? tmpls.bulk : tmpls.details;
+        smsText = smsText
+            .replace(/{NAME}/g, item.customer_name || 'Customer')
+            .replace(/{AMOUNT}/g, Number(item.overdue_amount || 0).toLocaleString())
+            .replace(/{AGENT_PHONE}/g, agentPhone);
+
+        console.log(`[SIM AUTO-SMS DISPATCHED] To: ${item.primary_phone} | Msg: ${smsText}`);
+        smsStatusNote = " • Auto-SMS Sent 💬";
+    }
+
+    document.getElementById('cockpit-call-status-text').innerText = `Calling SIM 1 (${cockpitAudioMode})${smsStatusNote}...`;
+
+    // If running on mobile browser, launch tel: scheme to dial via SIM card directly
+    if (item && item.primary_phone && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+        window.location.href = `tel:${item.primary_phone}`;
+    }
 
     cockpitInterval = setInterval(() => {
         cockpitTimerSecs++;
@@ -400,6 +431,85 @@ function toggleSimAudio() {
         btn.className = 'px-2.5 py-1.5 bg-white text-emerald-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm';
     }
     lucide.createIcons();
+}
+
+// ----------------------------------------------------
+// 2.5 SMS TEMPLATE ENGINE & AGENT CONFIGURATION
+// ----------------------------------------------------
+const DEFAULT_SMS_TEMPLATE_DETAILS = "Dear {NAME}, your overdue payment of Rs. {AMOUNT} is pending. Please clear immediately or contact your loan officer at {AGENT_PHONE}. - DebtFlow Team";
+const DEFAULT_SMS_TEMPLATE_BULK = "Urgent: Your account payment is overdue. Please settle your outstanding dues today or call {AGENT_PHONE} to avoid legal escalation. - DebtFlow Team";
+
+function getAgentSmsKey(suffix) {
+    const id = currentAgent ? (currentAgent.agent_id || currentAgent.id) : 'default';
+    return `debtflow_sms_${id}_${suffix}`;
+}
+
+function getAgentSmsTemplates() {
+    return {
+        details: localStorage.getItem(getAgentSmsKey('details')) || DEFAULT_SMS_TEMPLATE_DETAILS,
+        bulk: localStorage.getItem(getAgentSmsKey('bulk')) || DEFAULT_SMS_TEMPLATE_BULK,
+        autoSms: localStorage.getItem(getAgentSmsKey('autosms_enabled')) !== 'false'
+    };
+}
+
+function openSmsTemplateModal() {
+    const tmpls = getAgentSmsTemplates();
+    document.getElementById('template-detailed-input').value = tmpls.details;
+    document.getElementById('template-bulk-input').value = tmpls.bulk;
+    renderSmsTemplatePreview();
+    document.getElementById('sms-template-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function closeSmsTemplateModal() {
+    document.getElementById('sms-template-modal').classList.add('hidden');
+}
+
+function renderSmsTemplatePreview() {
+    const rawDetails = document.getElementById('template-detailed-input').value;
+    const rawBulk = document.getElementById('template-bulk-input').value;
+
+    const agentPhone = currentAgent ? (currentAgent.phone || currentAgent.agent_id || '9876543210') : '9876543210';
+    const sampleName = (cockpitCases[cockpitIndex] && cockpitCases[cockpitIndex].customer_name) || 'Rajesh Kumar';
+    const sampleAmt = (cockpitCases[cockpitIndex] && cockpitCases[cockpitIndex].overdue_amount) ? Number(cockpitCases[cockpitIndex].overdue_amount).toLocaleString() : '15,000';
+
+    const prevDetails = rawDetails
+        .replace(/{NAME}/g, sampleName)
+        .replace(/{AMOUNT}/g, sampleAmt)
+        .replace(/{AGENT_PHONE}/g, agentPhone);
+
+    const prevBulk = rawBulk
+        .replace(/{AGENT_PHONE}/g, agentPhone);
+
+    const detEl = document.getElementById('preview-template-detailed');
+    if (detEl) detEl.innerText = prevDetails;
+    const bulkEl = document.getElementById('preview-template-bulk');
+    if (bulkEl) bulkEl.innerText = prevBulk;
+}
+
+function saveSmsTemplates() {
+    const detailsVal = document.getElementById('template-detailed-input').value.trim();
+    const bulkVal = document.getElementById('template-bulk-input').value.trim();
+
+    if (!detailsVal || !bulkVal) {
+        alert('Templates cannot be empty.');
+        return;
+    }
+
+    localStorage.setItem(getAgentSmsKey('details'), detailsVal);
+    localStorage.setItem(getAgentSmsKey('bulk'), bulkVal);
+    closeSmsTemplateModal();
+    alert('SMS Templates saved successfully for your Agent ID!');
+}
+
+function resetSmsTemplates() {
+    document.getElementById('template-detailed-input').value = DEFAULT_SMS_TEMPLATE_DETAILS;
+    document.getElementById('template-bulk-input').value = DEFAULT_SMS_TEMPLATE_BULK;
+    renderSmsTemplatePreview();
+}
+
+function toggleAutoSmsPref(enabled) {
+    localStorage.setItem(getAgentSmsKey('autosms_enabled'), enabled ? 'true' : 'false');
 }
 
 // ----------------------------------------------------
