@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -25,8 +26,15 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private var currentCallDuration = 0
     private var currentAudioMode = TelephonyService.AudioMode.HEADSET
 
+    // Telecaller KPI Metrics
+    private var totalDialsToday = 0
+    private var totalPtpsToday = 0
+
     private val handler = Handler(Looper.getMainLooper())
     private var countdownTimer: CountDownTimer? = null
+    private var callChronometerHandler: Handler? = null
+    private var callStartTimeMillis: Long = 0
+    private var isCallInProgress = false
 
     // UI View References
     private lateinit var layoutLogin: LinearLayout
@@ -43,8 +51,14 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var tvCallTimer: TextView
     private lateinit var tvQueueProgress: TextView
 
+    // KPI Views
+    private lateinit var tvStatDials: TextView
+    private lateinit var tvStatPtps: TextView
+    private lateinit var tvStatQueue: TextView
+
     private lateinit var btnStartDial: Button
     private lateinit var btnPause: Button
+    private lateinit var btnNextLead: Button
     private lateinit var btnAudioToggle: Button
     private lateinit var btnAgentImport: Button
     private lateinit var layoutDispositions: LinearLayout
@@ -79,6 +93,8 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         // 4. Check if agent is already logged in
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1) {
+            val agentCode = SecurityManager.getAgentCode(this)
+            tvQueueProgress.text = if (agentCode.isNotEmpty()) agentCode else "AGT001"
             showDialerScreen()
             startHeartbeatCycle()
             fetchAssignedQueue(agentId)
@@ -102,8 +118,13 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         tvCallTimer = findViewById(R.id.tvCallTimer)
         tvQueueProgress = findViewById(R.id.tvQueueProgress)
 
+        tvStatDials = findViewById(R.id.tvStatDials)
+        tvStatPtps = findViewById(R.id.tvStatPtps)
+        tvStatQueue = findViewById(R.id.tvStatQueue)
+
         btnStartDial = findViewById(R.id.btnStartDial)
         btnPause = findViewById(R.id.btnPause)
+        btnNextLead = findViewById(R.id.btnNextLead)
         btnAudioToggle = findViewById(R.id.btnAudioToggle)
         btnAgentImport = findViewById(R.id.btnAgentImport)
         layoutDispositions = findViewById(R.id.layoutDispositions)
@@ -113,7 +134,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun setupButtonListeners() {
         btnAgentImport.setOnClickListener {
-            // Open native Android file picker to select CSV / Excel
             filePickerLauncher.launch("*/*")
         }
 
@@ -131,6 +151,11 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             tvCallStatus.text = if (isPaused) "Auto-dial paused" else "Resumed"
         }
 
+        btnNextLead.setOnClickListener {
+            // Manual Next: skip to next case and dial immediately if active
+            advanceToNextLead(autoDial = isAutoDialingActive)
+        }
+
         btnAudioToggle.setOnClickListener {
             currentAudioMode = when (currentAudioMode) {
                 TelephonyService.AudioMode.HEADSET -> TelephonyService.AudioMode.SPEAKER
@@ -138,7 +163,11 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 TelephonyService.AudioMode.EARPIECE -> TelephonyService.AudioMode.HEADSET
             }
             telephonyService.setAudioOutput(currentAudioMode)
-            btnAudioToggle.text = currentAudioMode.name
+            btnAudioToggle.text = when (currentAudioMode) {
+                TelephonyService.AudioMode.HEADSET -> "Earphone"
+                TelephonyService.AudioMode.SPEAKER -> "Speaker"
+                TelephonyService.AudioMode.EARPIECE -> "Handset"
+            }
         }
 
         // Disposition 1-Tap Buttons
@@ -175,6 +204,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     val agentObj = json.getJSONObject("agent")
                     val agentId = agentObj.getInt("id")
                     SecurityManager.saveAgentSession(this, agentId, code)
+                    tvQueueProgress.text = code
                     showDialerScreen()
                     startHeartbeatCycle()
                     fetchAssignedQueue(agentId)
@@ -215,47 +245,101 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private fun updateDebtorCard() {
         if (assignedCases.isEmpty()) {
             tvDebtorName.text = "No cases allocated"
-            tvQueueProgress.text = "0 / 0"
+            tvStatQueue.text = "0"
             btnStartDial.isEnabled = false
+            return
+        }
+
+        val remaining = assignedCases.size - currentCaseIndex
+        tvStatQueue.text = if (remaining > 0) remaining.toString() else "0"
+        tvStatDials.text = totalDialsToday.toString()
+        tvStatPtps.text = totalPtpsToday.toString()
+
+        if (currentCaseIndex >= assignedCases.size) {
+            tvDebtorName.text = "All Cases Completed! 🎉"
+            tvPhone.text = "-"
+            tvOverdue.text = "₹ 0"
+            btnStartDial.isEnabled = false
+            stopAutoDialing()
             return
         }
 
         btnStartDial.isEnabled = true
         val item = assignedCases[currentCaseIndex]
-        tvQueueProgress.text = "${currentCaseIndex + 1} of ${assignedCases.size}"
-        tvDebtorName.text = item.optString("customer_name", "Unknown")
-        tvLoanAcc.text = "Loan: ${item.optString("loan_account_no", "-")}"
+        tvDebtorName.text = item.optString("customer_name", "Unknown Lead")
+        tvLoanAcc.text = "Loan Acc: ${item.optString("loan_account_no", "-")}"
         tvPhone.text = item.optString("primary_phone", "-")
         tvOverdue.text = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
-        tvDpd.text = "DPD: ${item.optInt("dpd", 0)}"
-        tvBucket.text = item.optString("bucket", "B1")
+        tvDpd.text = "DPD: ${item.optInt("dpd", 0)} Days"
+        tvBucket.text = item.optString("bucket", "BUCKET 1").uppercase()
     }
 
     private fun startAutoDialing() {
-        if (assignedCases.isEmpty()) return
+        if (assignedCases.isEmpty()) {
+            Toast.makeText(this, "Import or allocate cases first!", Toast.LENGTH_SHORT).show()
+            return
+        }
         isAutoDialingActive = true
+        isPaused = false
         btnStartDial.text = "Stop Auto-Dial"
+        btnStartDial.backgroundTintList = ContextCompat.getColorStateList(this, android.R.color.holo_red_dark)
         dialCurrentCase()
     }
 
     private fun stopAutoDialing() {
         isAutoDialingActive = false
         btnStartDial.text = "Start Auto-Dialing"
+        btnStartDial.backgroundTintList = ContextCompat.getColorStateList(this, android.R.color.holo_green_dark)
         countdownTimer?.cancel()
-        tvCallStatus.text = "Ready"
+        stopCallTimerTicker()
+        tvCallStatus.text = "Ready to Dial"
     }
 
     private fun dialCurrentCase() {
         if (currentCaseIndex >= assignedCases.size) {
-            Toast.makeText(this, "Allocation Queue Completed!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Queue Completed!", Toast.LENGTH_LONG).show()
             stopAutoDialing()
             return
         }
 
         val item = assignedCases[currentCaseIndex]
         val phoneNumber = item.optString("primary_phone", "")
+        if (phoneNumber.isEmpty()) {
+            advanceToNextLead(autoDial = true)
+            return
+        }
+
+        totalDialsToday++
+        tvStatDials.text = totalDialsToday.toString()
+
         tvCallStatus.text = "Dialing $phoneNumber..."
+        tvCallTimer.text = "00:00"
+        layoutDispositions.visibility = View.GONE
+        isCallInProgress = true
+
         telephonyService.placeCall(phoneNumber)
+    }
+
+    private fun startCallTimerTicker() {
+        callStartTimeMillis = SystemClock.elapsedRealtime()
+        callChronometerHandler = Handler(Looper.getMainLooper())
+        val runnable = object : Runnable {
+            override fun run() {
+                if (isCallInProgress) {
+                    val elapsed = (SystemClock.elapsedRealtime() - callStartTimeMillis) / 1000
+                    val mins = elapsed / 60
+                    val secs = elapsed % 60
+                    tvCallTimer.text = String.format("%02d:%02d", mins, secs)
+                    callChronometerHandler?.postDelayed(this, 1000)
+                }
+            }
+        }
+        callChronometerHandler?.post(runnable)
+    }
+
+    private fun stopCallTimerTicker() {
+        callChronometerHandler?.removeCallbacksAndMessages(null)
+        callChronometerHandler = null
     }
 
     // Callbacks from TelephonyService
@@ -263,16 +347,19 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         handler.post {
             tvCallStatus.text = "Call Connected"
             layoutDispositions.visibility = View.GONE
+            startCallTimerTicker()
         }
     }
 
     override fun onCallDisconnected(durationSeconds: Int) {
         currentCallDuration = durationSeconds
+        isCallInProgress = false
         handler.post {
-            tvCallStatus.text = "Call Disconnected ($durationSeconds s)"
+            stopCallTimerTicker()
+            tvCallStatus.text = "Call Ended (${durationSeconds}s)"
             layoutDispositions.visibility = View.VISIBLE
 
-            // Start 5-second countdown to next call
+            // Automatically start 4-second disposition countdown
             startCountdownTimer()
         }
     }
@@ -286,7 +373,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             }
 
             override fun onFinish() {
-                recordDisposition("RNR") // Default to RNR if agent didn't tap
+                recordDisposition("RNR") // Auto-default to RNR if agent didn't tap
             }
         }.start()
     }
@@ -295,38 +382,62 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         countdownTimer?.cancel()
         layoutDispositions.visibility = View.GONE
 
-        if (assignedCases.isEmpty()) return
-        val currentCase = assignedCases[currentCaseIndex]
-        val allocId = currentCase.getInt("id")
-        val phone = currentCase.getString("primary_phone")
-        val agentId = SecurityManager.getAgentId(this)
+        if (disposition == "PTP") {
+            totalPtpsToday++
+            tvStatPtps.text = totalPtpsToday.toString()
+        }
 
-        // Sync disposition to Cloudflare D1 or store offline if no internet
-        thread {
-            val payload = JSONObject().apply {
-                put("allocation_id", allocId)
-                put("agent_id", agentId)
-                put("dialed_phone", phone)
-                put("call_duration_seconds", currentCallDuration)
-                put("disposition", disposition)
-            }
-            val res = ApiClient.post("/api/calls/log", payload)
-            if (res.isFailure) {
-                saveOfflineCallLog(payload)
-            } else {
-                syncOfflineLogsIfNeeded(agentId)
+        if (assignedCases.isNotEmpty() && currentCaseIndex < assignedCases.size) {
+            val currentCase = assignedCases[currentCaseIndex]
+            val allocId = currentCase.optInt("id", 0)
+            val phone = currentCase.optString("primary_phone", "")
+            val agentId = SecurityManager.getAgentId(this)
+
+            thread {
+                try {
+                    val payload = JSONObject().apply {
+                        put("allocation_id", allocId)
+                        put("agent_id", agentId)
+                        put("dialed_phone", phone)
+                        put("call_duration_seconds", currentCallDuration)
+                        put("disposition", disposition)
+                    }
+                    val res = ApiClient.post("/api/calls/log", payload)
+                    if (res.isFailure) {
+                        saveOfflineCallLog(payload)
+                    } else {
+                        syncOfflineLogsIfNeeded(agentId)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
 
-        // Advance to next debtor in queue
+        // Advance to next lead
+        advanceToNextLead(autoDial = isAutoDialingActive)
+    }
+
+    private fun advanceToNextLead(autoDial: Boolean) {
+        countdownTimer?.cancel()
+        layoutDispositions.visibility = View.GONE
         currentCaseIndex++
+
+        updateDebtorCard()
+
         if (currentCaseIndex < assignedCases.size) {
-            updateDebtorCard()
-            if (isAutoDialingActive && !isPaused) {
-                handler.postDelayed({ dialCurrentCase() }, 1500)
+            if (autoDial && !isPaused) {
+                tvCallStatus.text = "Next call starting in 1.5s..."
+                handler.postDelayed({
+                    if (isAutoDialingActive && !isPaused) {
+                        dialCurrentCase()
+                    }
+                }, 1500)
+            } else {
+                tvCallStatus.text = "Ready to Dial"
             }
         } else {
-            Toast.makeText(this, "All allocated cases dialed!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Queue Completed!", Toast.LENGTH_LONG).show()
             stopAutoDialing()
         }
     }
@@ -355,7 +466,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                         }
                     }
                 }
-                handler.postDelayed(this, 60000) // Every 60s
+                handler.postDelayed(this, 60000)
             }
         }
         handler.postDelayed(runnable, 60000)
@@ -392,7 +503,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             currentCaseIndex = 0
             handler.post {
                 updateDebtorCard()
-                Toast.makeText(this, "Offline Mode: Loaded ${assignedCases.size} cases from phone storage.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Offline Mode: Loaded ${assignedCases.size} cases.", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             handler.post {
@@ -409,7 +520,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             fos.write(currentLogs.toString().toByteArray(Charsets.UTF_8))
             fos.close()
             handler.post {
-                Toast.makeText(this, "Internet offline: Call outcome saved locally.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Saved offline. Will sync when online.", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -467,22 +578,25 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream))
                 val casesArray = JSONArray()
 
-                var line: String? = reader.readLine() // Read header
+                reader.readLine() // Read header
+                var line: String?
                 var count = 0
-                while (reader.readLine().also { line = it } != null && count < 300) {
+                while (reader.readLine().also { line = it } != null && count < 500) {
                     val parts = line!!.split(",")
                     if (parts.isNotEmpty()) {
                         val phone = parts.find { it.replace(Regex("\\D"), "").length >= 10 } ?: parts[0]
-                        val name = if (parts.size > 1) parts[0] else "Lead #${count + 1}"
-                        val loan = if (parts.size > 2) parts[1] else "SLF-${System.currentTimeMillis() % 10000}"
+                        val cleanPhone = phone.replace(Regex("\\D"), "")
+                        val name = if (parts.size > 1) parts[0].trim().replace("\"", "") else "Lead #${count + 1}"
+                        val loan = if (parts.size > 2) parts[1].trim().replace("\"", "") else "SLF-${System.currentTimeMillis() % 10000}"
 
                         casesArray.put(JSONObject().apply {
-                            put("primary_phone", phone.replace(Regex("\\D"), ""))
+                            put("id", count + 1)
+                            put("primary_phone", cleanPhone)
                             put("customer_name", name)
                             put("loan_account_no", loan)
-                            put("overdue_amount", 10000)
+                            put("overdue_amount", 12500)
                             put("dpd", 30)
-                            put("bucket", "SELF")
+                            put("bucket", "BUCKET 1")
                         })
                         count++
                     }
@@ -497,10 +611,18 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 val result = ApiClient.post("/api/allocations/upload-agent", payload)
                 handler.post {
                     result.onSuccess {
-                        Toast.makeText(this@MainActivity, "Loaded $count personal leads successfully!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@MainActivity, "Loaded $count leads successfully!", Toast.LENGTH_LONG).show()
                         fetchAssignedQueue(agentId)
                     }.onFailure { err ->
-                        Toast.makeText(this@MainActivity, "Upload error: ${err.message}", Toast.LENGTH_LONG).show()
+                        // Even if server upload fails, load locally so agent can dial immediately
+                        assignedCases.clear()
+                        for (i in 0 until casesArray.length()) {
+                            assignedCases.add(casesArray.getJSONObject(i))
+                        }
+                        saveCasesLocally(casesArray)
+                        currentCaseIndex = 0
+                        updateDebtorCard()
+                        Toast.makeText(this@MainActivity, "Loaded $count leads locally (Ready to dial)!", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
@@ -533,6 +655,18 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 101) {
             telephonyService.ensureListenerRegistered()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // If returning from the native call screen and a call just ended:
+        if (isCallInProgress) {
+            isCallInProgress = false
+            stopCallTimerTicker()
+            tvCallStatus.text = "Call Ended"
+            layoutDispositions.visibility = View.VISIBLE
+            startCountdownTimer()
         }
     }
 }

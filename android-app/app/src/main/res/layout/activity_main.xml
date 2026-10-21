@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#020617">
+    android:background="#F8FAFC">
 
-    <!-- 1. LOCKED VIEW (EMERGENCY KILL-SWITCH SCREEN) -->
+    <!-- ======================================================== -->
+    <!-- 1. EMERGENCY KILL-SWITCH SCREEN (PRISTINE LIGHT THEME)   -->
+    <!-- ======================================================== -->
     <LinearLayout
         android:id="@+id/layoutLocked"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#0F172A"
+        android:background="#FFFFFF"
         android:gravity="center"
         android:orientation="vertical"
         android:padding="32dp"
@@ -20,359 +23,637 @@
             android:layout_height="wrap_content"
             android:text="ACCESS REVOKED"
             android:textColor="#EF4444"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvLockReason"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="This APK is deactivated by Super Administrator. Local records wiped."
-            android:textColor="#94A3B8"
-            android:textSize="14sp" />
+            android:textColor="#64748B"
+            android:textSize="13sp" />
     </LinearLayout>
 
-    <!-- 2. LOGIN VIEW -->
+    <!-- ======================================================== -->
+    <!-- 2. LOGIN SCREEN (MATCHES WEB APP LOGIN IN LIGHT THEME)   -->
+    <!-- ======================================================== -->
     <LinearLayout
         android:id="@+id/layoutLogin"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="#F8FAFC"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="28dp"
+        android:padding="24dp"
         android:visibility="gone">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Login Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="DebtFlow Dialer"
-            android:textColor="#38BDF8"
-            android:textSize="26sp"
-            android:textStyle="bold" />
+            android:background="#FFFFFF"
+            android:elevation="4dp"
+            android:orientation="vertical"
+            android:padding="24dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="Telecaller Device Authentication"
-            android:textColor="#64748B"
-            android:textSize="13sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DebtFlow Pro"
+                android:textColor="#2563EB"
+                android:textSize="24sp"
+                android:textStyle="bold" />
 
-        <EditText
-            android:id="@+id/etAgentCode"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="32dp"
-            android:background="#0F172A"
-            android:hint="Agent ID (e.g. AGT001)"
-            android:paddingHorizontal="16dp"
-            android:textColor="#F8FAFC"
-            android:textColorHint="#475569"
-            android:textSize="14sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="SIM Auto-Dialer • Telecaller Login"
+                android:textColor="#64748B"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-        <EditText
-            android:id="@+id/etAgentPassword"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="12dp"
-            android:background="#0F172A"
-            android:hint="Password"
-            android:inputType="textPassword"
-            android:paddingHorizontal="16dp"
-            android:textColor="#F8FAFC"
-            android:textColorHint="#475569"
-            android:textSize="14sp" />
+            <!-- Agent ID Input -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="AGENT ID (LOGIN ID)"
+                android:textColor="#475569"
+                android:textSize="11sp"
+                android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnLoginSubmit"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_marginTop="24dp"
-            android:backgroundTint="#2563EB"
-            android:text="Authorize &amp; Bind Phone"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
+            <EditText
+                android:id="@+id/etAgentCode"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="#F1F5F9"
+                android:hint="e.g. AGT001"
+                android:inputType="textCapCharacters"
+                android:paddingHorizontal="14dp"
+                android:textColor="#0F172A"
+                android:textColorHint="#94A3B8"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- Password Input -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="PASSWORD"
+                android:textColor="#475569"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etAgentPassword"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="#F1F5F9"
+                android:hint="Enter password"
+                android:inputType="textPassword"
+                android:paddingHorizontal="14dp"
+                android:textColor="#0F172A"
+                android:textColorHint="#94A3B8"
+                android:textSize="14sp" />
+
+            <!-- Security Notice -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="#EFF6FF"
+                android:padding="10dp"
+                android:text="🔒 Device will be hardware-locked to your Agent ID on first login."
+                android:textColor="#1E40AF"
+                android:textSize="11sp" />
+
+            <!-- Submit Button -->
+            <Button
+                android:id="@+id/btnLoginSubmit"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="#2563EB"
+                android:text="Enter Cockpit"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- 3. DIALER HUD (HIGH-CONTRAST TELECALLING SCREEN) -->
+    <!-- ======================================================== -->
+    <!-- 3. TELECALLER HUD COCKPIT (EXACT MATCH WITH WEB APP)     -->
+    <!-- ======================================================== -->
     <LinearLayout
         android:id="@+id/layoutDialer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="#F8FAFC"
         android:orientation="vertical"
-        android:padding="16dp"
         android:visibility="visible">
 
-        <!-- Header -->
-        <RelativeLayout
+        <!-- 3A. TOP APP BAR (WHITE, BORDER SLATE) -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <TextView
-                android:id="@+id/tvQueueProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Queue: #1 of 250"
-                android:textColor="#94A3B8"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+            android:layout_height="wrap_content"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="12dp">
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:orientation="horizontal">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <Button
-                    android:id="@+id/btnAgentImport"
+                <LinearLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="6dp"
-                    android:backgroundTint="#1E293B"
-                    android:text="+ IMPORT"
-                    android:textColor="#38BDF8"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/btnAudioToggle"
+                    <TextView
+                        android:id="@+id/tvQueueProgress"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AGT001"
+                        android:textColor="#0F172A"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="#ECFDF5"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp"
+                        android:text="● SIM Live"
+                        android:textColor="#059669"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvHeaderSubtext"
                     android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:backgroundTint="#1E293B"
-                    android:text="HEADSET"
-                    android:textColor="#10B981"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Auto-Dialer Active"
+                    android:textColor="#64748B"
                     android:textSize="11sp" />
             </LinearLayout>
-        </RelativeLayout>
 
-        <!-- Debtor Card -->
-        <LinearLayout
+            <!-- Action Buttons: Import & Audio -->
+            <Button
+                android:id="@+id/btnAgentImport"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:backgroundTint="#EFF6FF"
+                android:text="+ Import"
+                android:textColor="#2563EB"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnAudioToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="#F1F5F9"
+                android:text="Earphone"
+                android:textColor="#059669"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginVertical="16dp"
             android:layout_weight="1"
-            android:background="#0F172A"
-            android:gravity="center_vertical"
-            android:orientation="vertical"
-            android:padding="20dp">
+            android:fillViewport="true">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <TextView
-                    android:id="@+id/tvBucket"
-                    android:layout_width="wrap_content"
+                <!-- 3B. 3-KPI STATS CARDS (DIALS, PTPS, REMAINING) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="#78350F"
-                    android:paddingHorizontal="8dp"
-                    android:paddingVertical="3dp"
-                    android:text="BUCKET 2"
-                    android:textColor="#FDE68A"
-                    android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal">
 
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="0dp"
-                    android:layout_weight="1" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:background="#FFFFFF"
+                        android:elevation="1dp"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="10dp">
 
-                <TextView
-                    android:id="@+id/tvDpd"
-                    android:layout_width="wrap_content"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="DIALS"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvStatDials"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="0"
+                            android:textColor="#0F172A"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="4dp"
+                        android:layout_weight="1"
+                        android:background="#FFFFFF"
+                        android:elevation="1dp"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="10dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PTPs"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvStatPtps"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="0"
+                            android:textColor="#059669"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:background="#FFFFFF"
+                        android:elevation="1dp"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="10dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="QUEUE"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvStatQueue"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="0"
+                            android:textColor="#2563EB"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- 3C. PRIMARY DEBTOR CARD (WHITE, SHADOW, IDENTICAL TO WEB APP) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="DPD: 64 Days"
-                    android:textColor="#F87171"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:layout_marginTop="14dp"
+                    android:background="#FFFFFF"
+                    android:elevation="2dp"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <!-- Badges Header -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvBucket"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="#FEF3C7"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp"
+                            android:text="BUCKET 1"
+                            android:textColor="#92400E"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
+
+                        <TextView
+                            android:id="@+id/tvDpd"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="DPD: 0 Days"
+                            android:textColor="#E11D48"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Debtor Name & Account -->
+                    <TextView
+                        android:id="@+id/tvDebtorName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Waiting for cases..."
+                        android:textColor="#0F172A"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvLoanAcc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Loan Acc: -"
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+
+                    <!-- Overdue & Phone Info Box -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:background="#F8FAFC"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="12dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="OVERDUE BALANCE"
+                                android:textColor="#94A3B8"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvOverdue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="₹ 0"
+                                android:textColor="#D97706"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:gravity="end"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="MOBILE SIM"
+                                android:textColor="#94A3B8"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvPhone"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="-"
+                                android:textColor="#1D4ED8"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- 3D. CALL STATUS & TIMER BANNER -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:background="#EFF6FF"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:id="@+id/tvCallStatus"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Ready to Dial"
+                            android:textColor="#1E40AF"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvCallTimer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="00:00"
+                            android:textColor="#1E40AF"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- 3E. 1-TOUCH DISPOSITION TAGS (MATCHES WEB APP EXACT COLORS) -->
+                    <LinearLayout
+                        android:id="@+id/layoutDispositions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text="1-TOUCH RECOVERY OUTCOME TAG"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <!-- Row 1: PTP, Broken PTP, Paid -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/btnDispPtp"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_marginEnd="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#ECFDF5"
+                                android:text="PTP"
+                                android:textColor="#065F46"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <Button
+                                android:id="@+id/btnDispBrokenPtp"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_marginHorizontal="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#FFFBEB"
+                                android:text="Broken PTP"
+                                android:textColor="#92400E"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <Button
+                                android:id="@+id/btnDispPaid"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_marginStart="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#EFF6FF"
+                                android:text="Paid"
+                                android:textColor="#1E40AF"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Row 2: RNR, Busy, Wrong # -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/btnDispRnr"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_marginEnd="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#F1F5F9"
+                                android:text="RNR"
+                                android:textColor="#334155"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <Button
+                                android:id="@+id/btnDispBusy"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_marginHorizontal="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#F1F5F9"
+                                android:text="Busy / Off"
+                                android:textColor="#334155"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <Button
+                                android:id="@+id/btnDispWrong"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_marginStart="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#FFF1F2"
+                                android:text="Wrong #"
+                                android:textColor="#9F1239"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- 3F. MAIN CALL CONTROLS -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnStartDial"
+                            android:layout_width="0dp"
+                            android:layout_height="52dp"
+                            android:layout_weight="1"
+                            android:backgroundTint="#10B981"
+                            android:text="Start Auto-Dialing"
+                            android:textColor="#FFFFFF"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnPause"
+                            android:layout_width="wrap_content"
+                            android:layout_height="52dp"
+                            android:layout_marginStart="6dp"
+                            android:backgroundTint="#F1F5F9"
+                            android:text="Pause"
+                            android:textColor="#334155"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnNextLead"
+                            android:layout_width="wrap_content"
+                            android:layout_height="52dp"
+                            android:layout_marginStart="6dp"
+                            android:backgroundTint="#EFF6FF"
+                            android:text="Next ⏭"
+                            android:textColor="#2563EB"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                </LinearLayout>
+
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvDebtorName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="Rajesh Kumar Sharma"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvLoanAcc"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Loan Acc: PL-98241029"
-                android:textColor="#64748B"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvPhone"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="+91 98765 43210"
-                android:textColor="#38BDF8"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvOverdue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="₹ 28,450"
-                android:textColor="#F59E0B"
-                android:textSize="26sp"
-                android:textStyle="bold" />
-
-            <!-- Call Live Status -->
-            <TextView
-                android:id="@+id/tvCallStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:background="#1E293B"
-                android:gravity="center"
-                android:padding="10dp"
-                android:text="Ready"
-                android:textColor="#38BDF8"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvCallTimer"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="6dp"
-                android:text="00:00"
-                android:textColor="#94A3B8"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <!-- 1-Tap Recovery Dispositions (Hidden during active dial, visible on disconnect) -->
-        <LinearLayout
-            android:id="@+id/layoutDispositions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginBottom="6dp"
-                android:text="TAG OUTCOME"
-                android:textColor="#94A3B8"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-
-            <GridLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:columnCount="3"
-                android:rowCount="2">
-
-                <Button
-                    android:id="@+id/btnDispPtp"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="2dp"
-                    android:backgroundTint="#059669"
-                    android:text="PTP"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnDispBrokenPtp"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="2dp"
-                    android:backgroundTint="#D97706"
-                    android:text="Broken PTP"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnDispPaid"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="2dp"
-                    android:backgroundTint="#2563EB"
-                    android:text="Paid"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnDispRnr"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="2dp"
-                    android:backgroundTint="#334155"
-                    android:text="RNR"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnDispBusy"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="2dp"
-                    android:backgroundTint="#334155"
-                    android:text="Busy/Off"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnDispWrong"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="2dp"
-                    android:backgroundTint="#DC2626"
-                    android:text="Wrong #"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </GridLayout>
-        </LinearLayout>
-
-        <!-- Bottom Controls -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnStartDial"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_weight="1"
-                android:backgroundTint="#059669"
-                android:text="Start Auto-Dialing"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btnPause"
-                android:layout_width="wrap_content"
-                android:layout_height="52dp"
-                android:layout_marginStart="8dp"
-                android:backgroundTint="#1E293B"
-                android:text="Pause"
-                android:textColor="#94A3B8" />
-        </LinearLayout>
+        </ScrollView>
     </LinearLayout>
 
 </FrameLayout>
