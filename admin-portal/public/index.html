@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DebtFlow Pro — Enterprise Collection Management & Auto-Dialer HQ</title>
+    <title>DebtFlow Pro — Enterprise Collection Management & Telecaller Cockpit</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons CDN -->
@@ -31,471 +31,453 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
 
-    <!-- Top Clean Light Navigation Bar -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between shadow-sm">
-        <div class="flex items-center space-x-3.5">
-            <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-                <i data-lucide="phone-call" class="w-5 h-5"></i>
-            </div>
-            <div>
-                <div class="flex items-center space-x-2">
-                    <span class="text-xl font-bold tracking-tight text-slate-900">DebtFlow<span class="text-blue-600">Pro</span></span>
-                    <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span> Live Cloudflare D1
-                    </span>
+    <!-- ======================================================== -->
+    <!-- 1. UNIFIED LOGIN SCREEN (AGENT ID AS LOGIN ID & ADMIN)   -->
+    <!-- ======================================================== -->
+    <section id="view-login" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full shadow-xl space-y-6">
+            <!-- Brand -->
+            <div class="text-center space-y-2">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                    <i data-lucide="phone-call" class="w-6 h-6"></i>
                 </div>
-                <p class="text-xs text-slate-500">Collection Agency Auto-Dialer & Super Admin Governance</p>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">DebtFlow<span class="text-blue-600">Pro</span></h1>
+                <p class="text-xs text-slate-500 font-medium">Cloudflare D1 Enterprise Collection Auto-Dialer</p>
             </div>
+
+            <!-- Role Switcher (Admin vs Agent) -->
+            <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
+                <button type="button" onclick="selectLoginRole('agent')" id="role-tab-agent" class="py-2.5 rounded-xl bg-white text-blue-700 shadow-sm transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="headphones" class="w-4 h-4"></i> Telecaller Agent
+                </button>
+                <button type="button" onclick="selectLoginRole('admin')" id="role-tab-admin" class="py-2.5 rounded-xl text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="shield" class="w-4 h-4"></i> Super Admin
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form onsubmit="handleUserLogin(event)" class="space-y-4">
+                <div>
+                    <label id="lbl-login-id" class="block text-xs font-bold text-slate-700 mb-1">Agent ID (Login ID)</label>
+                    <div class="relative">
+                        <input type="text" id="login-username" required placeholder="e.g. AGT001" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold uppercase placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition">
+                        <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute right-3.5 top-3"></i>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" required placeholder="Enter your password" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition">
+                        <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute right-3.5 top-3"></i>
+                    </div>
+                </div>
+
+                <div id="login-info-box" class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-800 flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+                    <span id="login-info-text">Agents: Use your assigned Agent ID (e.g. AGT001). Device will be hardware-locked on 1st login.</span>
+                </div>
+
+                <button type="submit" id="btn-login-submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/20 transition flex items-center justify-center gap-2">
+                    <span>Enter Telecaller Cockpit</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </form>
         </div>
+    </section>
 
-        <!-- Navigation Tabs (Light Professional Style) -->
-        <nav class="hidden md:flex space-x-1 border border-slate-200 bg-slate-100/70 p-1 rounded-xl text-sm font-medium">
-            <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-btn active px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
-                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Recovery Scoreboard
-            </button>
-            <button onclick="switchTab('agents')" id="btn-tab-agents" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
-                <i data-lucide="shield-alert" class="w-4 h-4"></i> 50 Agents & Kill-Switch
-            </button>
-            <button onclick="switchTab('allocations')" id="btn-tab-allocations" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
-                <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload & Distribute
-            </button>
-            <button onclick="switchTab('simulator')" id="btn-tab-simulator" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
-                <i data-lucide="smartphone" class="w-4 h-4"></i> Telecaller APK Simulator
-            </button>
-            <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
-                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Audit Reports
-            </button>
-        </nav>
-
-        <div class="flex items-center space-x-3">
-            <div class="text-right hidden sm:block">
-                <div class="text-xs font-bold text-slate-900">Super Administrator</div>
-                <div class="text-[11px] text-blue-600 font-medium">Full Governance Rights</div>
-            </div>
-            <div class="w-9 h-9 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-bold text-xs shadow-sm">
-                SA
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Workspace Container -->
-    <main class="flex-1 p-6 max-w-7xl mx-auto w-full">
-
-        <!-- ========================================== -->
-        <!-- TAB 1: RECOVERY SCOREBOARD (REAL DATA)    -->
-        <!-- ========================================== -->
-        <section id="section-dashboard" class="space-y-6">
-            <!-- Top Metric Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
-                    <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-                        <span>Total Calls Today</span>
-                        <div class="p-1.5 rounded-lg bg-blue-50 text-blue-600">
-                            <i data-lucide="phone-outgoing" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div class="text-2xl font-black text-slate-900" id="kpi-total-calls">0</div>
-                    <div class="text-[11px] text-emerald-600 mt-1 flex items-center gap-1 font-semibold">
-                        <i data-lucide="zap" class="w-3 h-3"></i> Real-time D1 Sync
-                    </div>
+    <!-- ======================================================== -->
+    <!-- 2. INTERFACE 1: SUPER ADMIN CONSOLE                     -->
+    <!-- ======================================================== -->
+    <div id="view-admin" class="hidden flex-col min-h-screen">
+        <!-- Admin Header -->
+        <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between shadow-sm">
+            <div class="flex items-center space-x-3.5">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                    <i data-lucide="shield" class="w-5 h-5"></i>
                 </div>
-
-                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
-                    <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-                        <span>Connected Calls</span>
-                        <div class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
-                            <i data-lucide="phone-forwarded" class="w-4 h-4"></i>
-                        </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl font-bold tracking-tight text-slate-900">DebtFlow<span class="text-blue-600">Admin</span></span>
+                        <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span> Live D1 Active
+                        </span>
                     </div>
-                    <div class="text-2xl font-black text-slate-900" id="kpi-connected-calls">0</div>
-                    <div class="text-[11px] text-slate-500 mt-1 font-medium">
-                        Connect Rate: <span class="text-emerald-700 font-bold" id="kpi-connect-rate">0%</span>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
-                    <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-                        <span>PTP Amount Promised</span>
-                        <div class="p-1.5 rounded-lg bg-amber-50 text-amber-600">
-                            <i data-lucide="indian-rupee" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div class="text-2xl font-black text-amber-600" id="kpi-ptp-amount">₹0</div>
-                    <div class="text-[11px] text-slate-500 mt-1 font-medium">
-                        Cases: <span class="text-slate-800 font-bold" id="kpi-ptp-cases">0 accounts</span>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
-                    <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-                        <span>Active Telecallers</span>
-                        <div class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
-                            <i data-lucide="users" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div class="text-2xl font-black text-slate-900">
-                        <span id="kpi-online-agents">0</span> <span class="text-xs font-normal text-slate-400">/ 50 Max</span>
-                    </div>
-                    <div class="text-[11px] text-indigo-600 mt-1 font-medium flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span> Heartbeat Active
-                    </div>
-                </div>
-
-                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
-                    <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-                        <span>Kill-Switched Agents</span>
-                        <div class="p-1.5 rounded-lg bg-rose-50 text-rose-600">
-                            <i data-lucide="lock" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div class="text-2xl font-black text-rose-600" id="kpi-revoked-agents">0</div>
-                    <div class="text-[11px] text-slate-500 mt-1 font-medium">
-                        Phone access disabled
-                    </div>
+                    <p class="text-xs text-slate-500">Super Admin Governance & Full Authority HQ</p>
                 </div>
             </div>
 
-            <!-- Visual Charts & Telecaller Leaderboard -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Disposition Distribution Chart -->
-                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="pie-chart" class="w-4 h-4 text-blue-600"></i> Call Outcome Breakdown
+            <!-- Admin Navigation Tabs -->
+            <nav class="hidden md:flex space-x-1 border border-slate-200 bg-slate-100/70 p-1 rounded-xl text-sm font-medium">
+                <button onclick="switchAdminTab('dashboard')" id="btn-tab-dashboard" class="tab-btn active px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Scoreboard
+                </button>
+                <button onclick="switchAdminTab('agents')" id="btn-tab-agents" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
+                    <i data-lucide="users" class="w-4 h-4"></i> 50 Agents & Kill-Switch
+                </button>
+                <button onclick="switchAdminTab('allocations')" id="btn-tab-allocations" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i> Allocation Upload
+                </button>
+                <button onclick="switchAdminTab('reports')" id="btn-tab-reports" class="tab-btn px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-white text-slate-700">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Bank Reports
+                </button>
+            </nav>
+
+            <div class="flex items-center space-x-3">
+                <div class="text-right hidden sm:block">
+                    <div class="text-xs font-bold text-slate-900">Super Administrator</div>
+                    <div class="text-[11px] text-emerald-600 font-semibold">Master Governance</div>
+                </div>
+                <button onclick="logoutUser()" class="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1.5" title="Sign out">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Admin Main Content -->
+        <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+            <!-- Section 1: Dashboard KPIs -->
+            <section id="section-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                            <span>Total Agency Calls</span>
+                            <div class="p-1.5 rounded-lg bg-blue-50 text-blue-600"><i data-lucide="phone-outgoing" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-black text-slate-900" id="kpi-total-calls">0</div>
+                        <div class="text-[11px] text-emerald-600 mt-1 font-semibold flex items-center gap-1">
+                            <i data-lucide="zap" class="w-3 h-3"></i> Cloudflare D1 Sync
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                            <span>Connected Calls</span>
+                            <div class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600"><i data-lucide="phone-forwarded" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-black text-slate-900" id="kpi-connected-calls">0</div>
+                        <div class="text-[11px] text-slate-500 mt-1">Connect Rate: <span class="text-emerald-700 font-bold" id="kpi-connect-rate">0%</span></div>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                            <span>Total PTP Promised</span>
+                            <div class="p-1.5 rounded-lg bg-amber-50 text-amber-600"><i data-lucide="indian-rupee" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-black text-amber-600" id="kpi-ptp-amount">₹0</div>
+                        <div class="text-[11px] text-slate-500 mt-1">Cases: <span class="text-slate-900 font-bold" id="kpi-ptp-cases">0 accounts</span></div>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                            <span>Active Telecallers</span>
+                            <div class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><i data-lucide="users" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-black text-slate-900">
+                            <span id="kpi-online-agents">0</span> <span class="text-xs font-normal text-slate-400">/ 50 Slots</span>
+                        </div>
+                        <div class="text-[11px] text-indigo-600 mt-1 font-semibold flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span> Heartbeat Active
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                            <span>Kill-Switched Agents</span>
+                            <div class="p-1.5 rounded-lg bg-rose-50 text-rose-600"><i data-lucide="lock" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-black text-rose-600" id="kpi-revoked-agents">0</div>
+                        <div class="text-[11px] text-slate-500 mt-1">Access revoked</div>
+                    </div>
+                </div>
+
+                <!-- Charts & Leaderboard -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
+                        <h3 class="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-blue-600"></i> Disposition Breakdown
                         </h3>
-                        <span class="text-[11px] text-slate-400">Live D1</span>
+                        <div class="flex-1 flex items-center justify-center relative min-h-[220px]">
+                            <canvas id="dispositionChart"></canvas>
+                        </div>
                     </div>
-                    <div class="flex-1 flex items-center justify-center relative min-h-[220px]">
-                        <canvas id="dispositionChart"></canvas>
+
+                    <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="trophy" class="w-4 h-4 text-amber-500"></i> Today's Telecaller Leaderboard
+                            </h3>
+                            <span class="text-xs text-slate-400">Auto-refresh 20s</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
+                                    <tr>
+                                        <th class="py-2.5 px-3">Agent</th>
+                                        <th class="py-2.5 px-3">Dials</th>
+                                        <th class="py-2.5 px-3">PTP Count</th>
+                                        <th class="py-2.5 px-3">Promised Amount</th>
+                                        <th class="py-2.5 px-3">Talk Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaderboard-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
+                                    <tr><td colspan="5" class="py-6 text-center text-slate-400">No calls recorded today.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+            </section>
 
-                <!-- Live Agent Leaderboard -->
-                <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="trophy" class="w-4 h-4 text-amber-500"></i> Top Recovery Telecallers Today
-                        </h3>
-                        <span class="text-xs text-slate-400">Refreshes every 30s</span>
+            <!-- Section 2: Agents & Kill Switch -->
+            <section id="section-agents" class="hidden space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="shield-alert" class="w-5 h-5 text-blue-600"></i> 50 Agent Slots & Device Kill-Switch
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">Super Admin creates Agent IDs. Revoked agents are blocked from opening the APK or exporting debtor lists.</p>
+                    </div>
+                    <button onclick="openCreateAgentModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i> Create Agent ID
+                    </button>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                        <div class="text-xs font-bold text-slate-700">Active Agency Staff</div>
+                        <input type="text" id="agent-search" oninput="filterAgentsList()" placeholder="Search Agent ID or Name..." class="w-64 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500">
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
                                 <tr>
-                                    <th class="py-2.5 px-3 font-semibold">Agent</th>
-                                    <th class="py-2.5 px-3 font-semibold">Dials Today</th>
-                                    <th class="py-2.5 px-3 font-semibold">PTP Count</th>
-                                    <th class="py-2.5 px-3 font-semibold">Promised Amount</th>
-                                    <th class="py-2.5 px-3 font-semibold">Talk Time</th>
+                                    <th class="py-3 px-4">Agent ID (Login ID)</th>
+                                    <th class="py-3 px-4">Full Name & Phone</th>
+                                    <th class="py-3 px-4">Hardware Phone Lock</th>
+                                    <th class="py-3 px-4">Assigned Cases</th>
+                                    <th class="py-3 px-4">Dials Today</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Super Admin Control</th>
                                 </tr>
                             </thead>
-                            <tbody id="leaderboard-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
-                                <tr><td colspan="5" class="py-6 text-center text-slate-400">No calls recorded in D1 database yet today. Start calling or upload cases to begin.</td></tr>
+                            <tbody id="agents-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
+                                <tr><td colspan="7" class="py-6 text-center text-slate-400">Loading agents...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- ========================================== -->
-        <!-- TAB 2: AGENT MANAGEMENT & KILL-SWITCH HQ  -->
-        <!-- ========================================== -->
-        <section id="section-agents" class="hidden space-y-6">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                <div>
-                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="shield-alert" class="w-5 h-5 text-blue-600"></i> 50 Telecaller Slots & Hardware Kill-Switch
+            <!-- Section 3: Allocation Upload -->
+            <section id="section-allocations" class="hidden space-y-6">
+                <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-1">
+                        <i data-lucide="upload-cloud" class="w-5 h-5 text-blue-600"></i> Upload Portfolio Allocation (Excel / CSV)
                     </h2>
-                    <p class="text-xs text-slate-500 mt-1">Super Admin controls APK provisioning. Revoked agents are blocked immediately from opening the APK or exporting debtor leads.</p>
-                </div>
-                <button onclick="openCreateAgentModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2">
-                    <i data-lucide="user-plus" class="w-4 h-4"></i> Create New Agent ID
-                </button>
-            </div>
+                    <p class="text-xs text-slate-500 mb-6">Upload customer sheets from Banks or NBFCs to distribute cases equally across your 50 telecaller IDs.</p>
 
-            <!-- Agents Table -->
-            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
-                    <div class="text-xs font-bold text-slate-700">Active Agency Staff in Cloudflare D1</div>
-                    <div class="relative w-64">
-                        <input type="text" id="agent-search" oninput="filterAgentsList()" placeholder="Filter Agent Code or Name..." class="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500">
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs">
-                        <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
-                            <tr>
-                                <th class="py-3 px-4 font-semibold">Agent Code</th>
-                                <th class="py-3 px-4 font-semibold">Full Name & Phone</th>
-                                <th class="py-3 px-4 font-semibold">Hardware Phone Lock</th>
-                                <th class="py-3 px-4 font-semibold">Assigned Cases</th>
-                                <th class="py-3 px-4 font-semibold">Dials Today</th>
-                                <th class="py-3 px-4 font-semibold">Status</th>
-                                <th class="py-3 px-4 font-semibold text-right">Super Admin Control</th>
-                            </tr>
-                        </thead>
-                        <tbody id="agents-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
-                            <tr><td colspan="7" class="py-6 text-center text-slate-400">Loading agents from Cloudflare D1...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- ========================================== -->
-        <!-- TAB 3: ALLOCATION UPLOAD & DISTRIBUTION    -->
-        <!-- ========================================== -->
-        <section id="section-allocations" class="hidden space-y-6">
-            <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-1">
-                    <i data-lucide="upload-cloud" class="w-5 h-5 text-blue-600"></i> Ingest Real Portfolio Allocations (Excel / CSV)
-                </h2>
-                <p class="text-xs text-slate-500 mb-6">Upload customer sheets from Banks or NBFCs. The engine cleans numbers to 10-digits and distributes cases directly to telecaller queues in Cloudflare D1.</p>
-
-                <!-- Drag & Drop Box -->
-                <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-8 text-center cursor-pointer bg-slate-50/50 hover:bg-blue-50/30 transition">
-                    <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
-                    <div class="w-14 h-14 mx-auto rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
-                        <i data-lucide="file-up" class="w-7 h-7"></i>
-                    </div>
-                    <div class="text-sm font-bold text-slate-800">Click to select or drag & drop portfolio file</div>
-                    <p class="text-xs text-slate-500 mt-1">Supports standard Excel (.xlsx, .xls) and CSV</p>
-                    <div class="text-[11px] text-slate-400 mt-3 font-medium">Standard columns: Customer Name, Loan ID, Phone, Alt Phone, Overdue Amount, DPD, Bucket</div>
-                </div>
-
-                <!-- Ingestion Settings Form (Hidden until file selected) -->
-                <div id="upload-settings" class="hidden mt-6 space-y-4 border-t border-slate-200 pt-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 mb-1">Batch Name</label>
-                            <input type="text" id="batch-name" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
+                    <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-8 text-center cursor-pointer bg-slate-50/50 hover:bg-blue-50/30 transition">
+                        <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
+                        <div class="w-14 h-14 mx-auto rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+                            <i data-lucide="file-up" class="w-7 h-7"></i>
                         </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 mb-1">Distribution Mode</label>
-                            <select id="distribution-strategy" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
-                                <option value="ROUND_ROBIN">Equal Split (Round-Robin across all active agents)</option>
-                                <option value="SPECIFIC">Assign entire batch to one agent</option>
-                            </select>
-                        </div>
-                        <div id="specific-agent-wrapper" class="hidden">
-                            <label class="block text-xs font-semibold text-slate-700 mb-1">Target Agent</label>
-                            <select id="target-agent-select" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500"></select>
-                        </div>
+                        <div class="text-sm font-bold text-slate-800">Click to select or drag & drop portfolio file</div>
+                        <p class="text-xs text-slate-500 mt-1">Supports standard Excel (.xlsx, .xls) and CSV</p>
                     </div>
 
-                    <!-- File Preview Card -->
-                    <div class="bg-blue-50/60 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
-                        <div>
-                            <div class="text-xs font-bold text-blue-800 flex items-center gap-1.5">
-                                <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> File Parsed Successfully
+                    <div id="upload-settings" class="hidden mt-6 space-y-4 border-t border-slate-200 pt-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Batch Name</label>
+                                <input type="text" id="batch-name" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
                             </div>
-                            <div class="text-xs text-slate-600 mt-1">
-                                Detected: <span id="preview-row-count" class="font-extrabold text-slate-900">0</span> valid cases ready for D1 upload.
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Distribution Mode</label>
+                                <select id="distribution-strategy" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
+                                    <option value="ROUND_ROBIN">Equal Split (Round-Robin across 50 active agents)</option>
+                                    <option value="SPECIFIC">Assign entire batch to one specific Agent ID</option>
+                                </select>
+                            </div>
+                            <div id="specific-agent-wrapper" class="hidden">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Target Agent</label>
+                                <select id="target-agent-select" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500"></select>
                             </div>
                         </div>
-                        <button onclick="submitAllocationUpload()" id="btn-push-allocation" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2">
-                            <i data-lucide="send" class="w-4 h-4"></i> Upload & Assign in Cloudflare D1
+
+                        <div class="bg-blue-50/60 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                                    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> File Parsed
+                                </div>
+                                <div class="text-xs text-slate-600 mt-1">Detected: <span id="preview-row-count" class="font-extrabold text-slate-900">0</span> valid cases.</div>
+                            </div>
+                            <button onclick="submitAllocationUpload()" id="btn-push-allocation" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2">
+                                <i data-lucide="send" class="w-4 h-4"></i> Upload & Assign in Cloudflare D1
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Bank Reports -->
+            <section id="section-reports" class="hidden space-y-6">
+                <div class="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-600"></i> Audited Bank Reports
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">Download complete timestamped call logs and recovery outcomes for your client banks.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="date" id="report-date" class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800">
+                        <button onclick="downloadCsvReport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-2 transition">
+                            <i data-lucide="download" class="w-4 h-4"></i> Export to Excel / CSV
                         </button>
                     </div>
                 </div>
-            </div>
-        </section>
 
-        <!-- ========================================== -->
-        <!-- TAB 4: TELECALLER APK SIMULATOR (LIVE D1) -->
-        <!-- ========================================== -->
-        <section id="section-simulator" class="hidden space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <!-- Info Left Column -->
-                <div class="lg:col-span-5 space-y-4">
-                    <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="smartphone" class="w-5 h-5 text-blue-600"></i> Live Telecaller APK Interface
-                        </h3>
-                        <p class="text-xs text-slate-600 mt-2 leading-relaxed">
-                            This interface connects directly to your live Cloudflare D1 backend. You can test dialing real cases, switching audio routing, and recording dispositions right from your browser or phone:
-                        </p>
-                        <ul class="text-xs text-slate-700 mt-3 space-y-2 font-medium">
-                            <li class="flex items-center gap-2">
-                                <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i> Zero manual typing: Auto-dials via native SIM
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i> Earphones & Headset active hands-free calling
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i> 1-Tap Recovery Tags (PTP, Broken PTP, RNR, Busy)
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i> Auto-advances to next debtor after 3 seconds
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <i data-lucide="lock" class="w-4 h-4 text-rose-600"></i> Screenshots blocked via <code class="bg-slate-100 text-rose-700 px-1 py-0.5 rounded">FLAG_SECURE</code>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="bg-slate-100 border border-slate-200 p-4 rounded-xl text-xs text-slate-700">
-                        <div class="font-bold text-slate-900 flex items-center gap-1.5 mb-1">
-                            <i data-lucide="cpu" class="w-4 h-4 text-blue-600"></i> GitHub Actions Automated APK Builder
-                        </div>
-                        When you push to your GitHub repo, the automated workflow compiles the release Android APK for your 50 phones with zero configuration.
+                <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
+                                <tr>
+                                    <th class="py-3 px-4">Timestamp</th>
+                                    <th class="py-3 px-4">Agent ID</th>
+                                    <th class="py-3 px-4">Loan Account</th>
+                                    <th class="py-3 px-4">Customer</th>
+                                    <th class="py-3 px-4">Dialed Phone</th>
+                                    <th class="py-3 px-4">Duration</th>
+                                    <th class="py-3 px-4">Disposition</th>
+                                    <th class="py-3 px-4">PTP Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
+                                <tr><td colspan="8" class="py-6 text-center text-slate-400">Loading call history...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
+            </section>
+        </main>
+    </div>
 
-                <!-- Clean Light Mobile Phone Frame -->
-                <div class="lg:col-span-7 flex justify-center">
-                    <div class="w-full max-w-sm bg-slate-900 rounded-[3rem] p-3 shadow-2xl relative">
-                        <!-- Phone Notch / Speaker -->
-                        <div class="absolute top-5 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-800 rounded-full flex items-center justify-center gap-1.5 z-10">
-                            <div class="w-2 h-2 rounded-full bg-slate-950"></div>
-                            <div class="w-8 h-1 bg-slate-700 rounded-full"></div>
-                        </div>
-
-                        <!-- Phone Screen (Clean Light Theme) -->
-                        <div class="bg-slate-50 rounded-[2.5rem] pt-8 pb-5 px-4 h-[620px] flex flex-col justify-between overflow-hidden border border-slate-200 text-slate-900">
-                            <!-- Mobile Header -->
-                            <div class="border-b border-slate-200 pb-3">
-                                <div class="flex items-center justify-between text-[11px] text-slate-500">
-                                    <span class="font-bold text-slate-800 flex items-center gap-1">
-                                        <i data-lucide="radio" class="w-3 h-3 text-emerald-600"></i> SIM 1 (CUG SIM)
-                                    </span>
-                                    <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-bold" id="sim-agent-badge">AGT001</span>
-                                </div>
-                                <div class="flex items-center justify-between mt-2">
-                                    <div class="text-xs font-bold text-slate-700">Queue: #<span id="sim-case-index">1</span> of <span id="sim-case-total">1</span></div>
-                                    <div class="flex items-center gap-1.5">
-                                        <!-- Agent Self-Upload Button -->
-                                        <button onclick="openAgentUploadModal()" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold border border-blue-200 shadow-sm flex items-center gap-1 transition" title="Upload your own allocation file">
-                                            <i data-lucide="file-plus" class="w-3 h-3"></i> Import
-                                        </button>
-                                        <!-- Audio Toggle -->
-                                        <button onclick="toggleSimAudio()" id="sim-audio-btn" class="px-2 py-1 bg-white rounded-lg text-[10px] font-bold text-emerald-700 flex items-center gap-1 border border-slate-200 shadow-sm">
-                                            <i data-lucide="headphones" class="w-3 h-3"></i> Earphone
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Debtor Case Card (Crisp White Surface) -->
-                            <div class="bg-white border border-slate-200 rounded-2xl p-4 my-auto space-y-3 shadow-sm">
-                                <div class="flex items-center justify-between">
-                                    <span class="px-2 py-0.5 text-[10px] font-extrabold rounded bg-amber-100 text-amber-800 border border-amber-200" id="sim-case-bucket">BUCKET 2</span>
-                                    <span class="text-[11px] text-rose-600 font-extrabold" id="sim-case-dpd">DPD: 64 Days</span>
-                                </div>
-
-                                <div>
-                                    <div class="text-base font-extrabold text-slate-900" id="sim-case-name">Rajesh Kumar Sharma</div>
-                                    <div class="text-xs text-slate-500" id="sim-case-loan">Loan Acc: PL-98241029</div>
-                                </div>
-
-                                <div class="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between border border-slate-200">
-                                    <div>
-                                        <div class="text-[10px] text-slate-500 uppercase font-bold">Total Overdue</div>
-                                        <div class="text-lg font-black text-amber-600" id="sim-case-amount">₹ 28,450</div>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-[10px] text-slate-500 uppercase font-bold">Borrower Phone</div>
-                                        <div class="text-xs font-mono font-bold text-blue-700" id="sim-case-phone">+91 98765 43210</div>
-                                    </div>
-                                </div>
-
-                                <!-- Call Progress / Live Timer -->
-                                <div id="sim-call-status-box" class="py-2 px-3 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs">
-                                    <div class="flex items-center gap-2 text-blue-700 font-bold">
-                                        <span class="w-2 h-2 rounded-full bg-blue-600 pulse-dot"></span>
-                                        <span id="sim-call-status-text">Ready to Dial</span>
-                                    </div>
-                                    <div class="font-mono text-slate-700 font-bold" id="sim-call-timer">00:00</div>
-                                </div>
-                            </div>
-
-                            <!-- 1-Tap Recovery Dispositions -->
-                            <div class="space-y-2">
-                                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">1-Touch Recovery Tag</div>
-                                <div class="grid grid-cols-3 gap-1.5">
-                                    <button onclick="logSimCall('PTP')" class="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-[11px] font-bold text-emerald-800 text-center transition">
-                                        PTP
-                                    </button>
-                                    <button onclick="logSimCall('BROKEN_PTP')" class="py-2 px-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-800 text-center transition">
-                                        Broken PTP
-                                    </button>
-                                    <button onclick="logSimCall('PAID_ONLINE')" class="py-2 px-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-800 text-center transition">
-                                        Paid
-                                    </button>
-                                    <button onclick="logSimCall('RNR')" class="py-2 px-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 text-center transition">
-                                        RNR
-                                    </button>
-                                    <button onclick="logSimCall('BUSY')" class="py-2 px-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 text-center transition">
-                                        Busy / Off
-                                    </button>
-                                    <button onclick="logSimCall('WRONG_NUMBER')" class="py-2 px-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-[11px] font-bold text-rose-800 text-center transition">
-                                        Wrong #
-                                    </button>
-                                </div>
-
-                                <!-- Dial / Pause Controls -->
-                                <div class="flex items-center gap-2 pt-2">
-                                    <button onclick="triggerSimDial()" id="sim-dial-btn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition">
-                                        <i data-lucide="phone" class="w-4 h-4"></i> Start Auto-Dialing
-                                    </button>
-                                    <button onclick="toggleSimPause()" id="sim-pause-btn" class="px-3 py-3 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-sm transition">
-                                        <i data-lucide="pause" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+    <!-- ======================================================== -->
+    <!-- 3. INTERFACE 2: DEDICATED TELECALLER AGENT COCKPIT       -->
+    <!-- ======================================================== -->
+    <div id="view-agent" class="hidden flex-col min-h-screen bg-slate-100">
+        <!-- Agent Mobile Top Bar -->
+        <header class="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-sm">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                    <i data-lucide="headphones" class="w-4 h-4"></i>
                 </div>
-            </div>
-        </section>
-
-        <!-- ========================================== -->
-        <!-- TAB 5: AUDIT REPORTS & BANK EXPORT         -->
-        <!-- ========================================== -->
-        <section id="section-reports" class="hidden space-y-6">
-            <div class="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
                 <div>
-                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-600"></i> Audited Call Reports (Bank / NBFC Format)
-                    </h2>
-                    <p class="text-xs text-slate-500 mt-1">Export full call history with timestamps, durations, and recovery dispositions.</p>
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-bold text-slate-900 text-sm" id="agent-cockpit-code">AGT001</span>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">ACTIVE</span>
+                    </div>
+                    <div class="text-[11px] text-slate-500" id="agent-cockpit-name">Rahul Sharma</div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <input type="date" id="report-date" class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
-                    <button onclick="downloadCsvReport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-2 transition">
-                        <i data-lucide="download" class="w-4 h-4"></i> Export to Excel / CSV
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <!-- Self-Upload Button -->
+                <button onclick="openAgentUploadModal()" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition flex items-center gap-1 shadow-sm">
+                    <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> Import List
+                </button>
+                <!-- Audio Switcher -->
+                <button onclick="toggleSimAudio()" id="cockpit-audio-btn" class="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-emerald-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm">
+                    <i data-lucide="headphones" class="w-3.5 h-3.5"></i> Earphone
+                </button>
+                <!-- Logout -->
+                <button onclick="logoutUser()" class="p-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition" title="Sign out">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Agent Calling Workspace -->
+        <main class="flex-1 p-4 max-w-xl mx-auto w-full space-y-4">
+            <!-- Agent Shift Stats Cards -->
+            <div class="grid grid-cols-3 gap-2">
+                <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">My Dials</div>
+                    <div class="text-lg font-black text-slate-900 mt-0.5" id="agent-stat-dials">0</div>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">My PTPs</div>
+                    <div class="text-lg font-black text-emerald-600 mt-0.5" id="agent-stat-ptps">0</div>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Queue Remaining</div>
+                    <div class="text-lg font-black text-blue-600 mt-0.5" id="agent-stat-queue">0</div>
+                </div>
+            </div>
+
+            <!-- Debtor Primary Calling HUD Card -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-amber-50 text-amber-800 border border-amber-200" id="cockpit-case-bucket">BUCKET 1</span>
+                    <span class="text-xs text-rose-600 font-extrabold" id="cockpit-case-dpd">DPD: 0 Days</span>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-extrabold text-slate-900 tracking-tight" id="cockpit-case-name">Waiting for cases...</h2>
+                    <div class="text-xs text-slate-400 mt-0.5 font-medium" id="cockpit-case-loan">Loan Acc: -</div>
+                </div>
+
+                <!-- Overdue & Phone Block -->
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">Overdue Balance</div>
+                        <div class="text-2xl font-black text-amber-600" id="cockpit-case-amount">₹ 0</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">Mobile SIM</div>
+                        <div class="text-sm font-mono font-bold text-blue-700" id="cockpit-case-phone">-</div>
+                    </div>
+                </div>
+
+                <!-- Call Status / Timer Banner -->
+                <div id="cockpit-call-status-box" class="py-2.5 px-4 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs font-bold text-blue-800">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-600 pulse-dot"></span>
+                        <span id="cockpit-call-status-text">Ready to Dial</span>
+                    </div>
+                    <div class="font-mono text-slate-700" id="cockpit-call-timer">00:00</div>
+                </div>
+
+                <!-- 1-Tap Recovery Tagging Grid -->
+                <div class="space-y-1.5 pt-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">1-Touch Outcome Tag</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="logCockpitCall('PTP')" class="py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 transition">PTP</button>
+                        <button onclick="logCockpitCall('BROKEN_PTP')" class="py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 transition">Broken PTP</button>
+                        <button onclick="logCockpitCall('PAID_ONLINE')" class="py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-800 transition">Paid</button>
+                        <button onclick="logCockpitCall('RNR')" class="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">RNR</button>
+                        <button onclick="logCockpitCall('BUSY')" class="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">Busy / Off</button>
+                        <button onclick="logCockpitCall('WRONG_NUMBER')" class="py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 transition">Wrong #</button>
+                    </div>
+                </div>
+
+                <!-- Main Call / Pause Controls -->
+                <div class="flex items-center gap-2 pt-2">
+                    <button onclick="triggerCockpitDial()" id="cockpit-dial-btn" class="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2">
+                        <i data-lucide="phone" class="w-5 h-5"></i> Start Auto-Dialing
+                    </button>
+                    <button onclick="toggleCockpitPause()" id="cockpit-pause-btn" class="px-4 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 shadow-sm transition">
+                        <i data-lucide="pause" class="w-5 h-5"></i>
                     </button>
                 </div>
             </div>
+        </main>
+    </div>
 
-            <!-- Report Table -->
-            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs">
-                        <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
-                            <tr>
-                                <th class="py-3 px-4 font-semibold">Timestamp</th>
-                                <th class="py-3 px-4 font-semibold">Agent ID</th>
-                                <th class="py-3 px-4 font-semibold">Loan Account</th>
-                                <th class="py-3 px-4 font-semibold">Customer</th>
-                                <th class="py-3 px-4 font-semibold">Dialed Phone</th>
-                                <th class="py-3 px-4 font-semibold">Duration</th>
-                                <th class="py-3 px-4 font-semibold">Disposition</th>
-                                <th class="py-3 px-4 font-semibold">PTP Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody id="report-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
-                            <tr><td colspan="8" class="py-6 text-center text-slate-400">Loading call records from Cloudflare D1...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
+    <!-- ======================================================== -->
+    <!-- MODALS: CREATE AGENT & AGENT SELF-ALLOCATION             -->
+    <!-- ======================================================== -->
 
-    </main>
-
-    <!-- Create Agent Modal (Clean Light Design) -->
+    <!-- Create Agent Modal -->
     <div id="create-agent-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-xl">
             <div class="flex items-center justify-between mb-4">
@@ -508,7 +490,7 @@
             </div>
             <form id="create-agent-form" onsubmit="handleCreateAgent(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Agent Code</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Agent ID (Login ID)</label>
                     <input type="text" id="new-agent-code" placeholder="e.g. AGT005" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 uppercase focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
@@ -516,25 +498,22 @@
                     <input type="text" id="new-agent-name" placeholder="e.g. Vikas Verma" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Phone Number (Calling SIM)</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Calling SIM Phone Number</label>
                     <input type="tel" id="new-agent-phone" placeholder="e.g. 9812345678" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">Login Password</label>
                     <input type="password" id="new-agent-password" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
                 </div>
-                <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-800">
-                    <i data-lucide="shield-check" class="w-3.5 h-3.5 inline mr-1 text-blue-600"></i> The APK locks automatically to the agent's Android phone hardware UUID upon first login.
-                </div>
                 <div class="flex items-center justify-end gap-3 pt-2">
-                    <button type="button" onclick="closeCreateAgentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">Cancel</button>
-                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition">Create Agent</button>
+                    <button type="button" onclick="closeCreateAgentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm">Create Agent</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Agent Self-Upload Modal (Clean Light Design) -->
+    <!-- Agent Self-Upload Modal -->
     <div id="agent-upload-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-xl">
             <div class="flex items-center justify-between mb-4">
@@ -546,12 +525,11 @@
                 </button>
             </div>
             
-            <p class="text-xs text-slate-500 mb-4">Upload an Excel/CSV file received on WhatsApp/Email, or paste phone numbers directly to start auto-dialing your personal batch.</p>
+            <p class="text-xs text-slate-500 mb-4">Select an Excel/CSV file received on WhatsApp/Email, or paste phone numbers directly to start calling your personal list.</p>
 
-            <!-- Option 1: File Upload -->
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Option A: Select Excel / CSV File</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Option A: Select File (.xlsx, .xls, .csv)</label>
                     <input type="file" id="agent-file-input" accept=".xlsx, .xls, .csv" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
                 </div>
 
@@ -561,19 +539,14 @@
                     <div class="flex-1 border-t border-slate-200"></div>
                 </div>
 
-                <!-- Option 2: Quick Paste Numbers -->
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Option B: Quick Paste Phone Numbers (1 per line)</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Option B: Paste Numbers (1 per line)</label>
                     <textarea id="agent-paste-numbers" rows="3" placeholder="9876543210&#10;9823019283&#10;9711823901" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-blue-500"></textarea>
                 </div>
 
-                <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-800">
-                    <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1 text-blue-600"></i> Cases will be assigned directly to your Agent ID and synced to Cloudflare D1.
-                </div>
-
                 <div class="flex items-center justify-end gap-3 pt-2">
-                    <button type="button" onclick="closeAgentUploadModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">Cancel</button>
-                    <button type="button" onclick="handleAgentSelfUpload()" id="btn-agent-upload-submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+                    <button type="button" onclick="closeAgentUploadModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Cancel</button>
+                    <button type="button" onclick="handleAgentSelfUpload()" id="btn-agent-upload-submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5">
                         <i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue
                     </button>
                 </div>
@@ -581,7 +554,7 @@
         </div>
     </div>
 
-    <!-- Client Script Logic (100% Real API & D1 Sync) -->
+    <!-- Client Script Logic -->
     <script src="app.js"></script>
 </body>
 </html>
