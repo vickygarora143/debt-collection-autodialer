@@ -436,25 +436,21 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         tvCallTimer.text = "00:00"
         isCallInProgress = true
 
-        // AUTOMATED SMS ON DIAL
+        // AUTOMATED SMS ON DIAL (Google Play Protect Compliant via Safe Native Intent)
         if (cbAutoSms.isChecked) {
             val debtorName = item.optString("customer_name", "")
             val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
             val agentPhone = SecurityManager.getAgentPhone(this)
 
-            thread {
-                val sent = SmsSenderService.sendAutoSms(
+            runOnUiThread {
+                SmsSenderService.sendAutoSms(
                     context = this,
                     recipientPhone = phoneNumber,
                     customerName = debtorName,
                     overdueAmount = overdueAmt,
                     agentPhone = agentPhone
                 )
-                if (sent) {
-                    handler.post {
-                        tvCallStatus.text = "Dialing $phoneNumber • SMS Sent ✓"
-                    }
-                }
+                tvCallStatus.text = "Dialing $phoneNumber • SMS Ready ✓"
             }
         }
 
@@ -857,7 +853,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private fun checkPermissions() {
         val perms = arrayOf(
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.SEND_SMS,
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.READ_CALL_LOG
         )

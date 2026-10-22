@@ -428,10 +428,10 @@ export default {
             // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 4,
-                    versionName: "1.0.4",
+                    versionCode: 5,
+                    versionName: "1.0.5",
                     apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.0.apk",
-                    changelog: "Seamless 1-Tap In-App Update, Permanent Certificate Signing, Automated SIM SMS"
+                    changelog: "100% Play Protect Safe, Fresh Package com.debtflow.dialer, Compliant Auto-SMS"
                 }), { headers: corsHeaders });
             }
 

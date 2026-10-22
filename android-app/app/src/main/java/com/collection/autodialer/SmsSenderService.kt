@@ -1,8 +1,8 @@
 package com.collection.autodialer
 
 import android.content.Context
-import android.os.Build
-import android.telephony.SmsManager
+import android.content.Intent
+import android.net.Uri
 
 object SmsSenderService {
 
@@ -74,19 +74,13 @@ object SmsSenderService {
                 .replace("{AMOUNT}", overdueAmount)
                 .replace("{AGENT_PHONE}", if (agentPhone.isNotEmpty()) agentPhone else "our office")
 
-            val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.getSystemService(SmsManager::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                SmsManager.getDefault()
+            // Safe, Google Play Protect-compliant system SMS Intent (Requires 0 dangerous SMS permissions)
+            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("smsto:$cleanPhone")
+                putExtra("sms_body", personalizedText)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-
-            val parts = smsManager.divideMessage(personalizedText)
-            if (parts.size > 1) {
-                smsManager.sendMultipartTextMessage(cleanPhone, null, parts, null, null)
-            } else {
-                smsManager.sendTextMessage(cleanPhone, null, personalizedText, null, null)
-            }
+            context.startActivity(smsIntent)
             true
         } catch (e: Exception) {
             e.printStackTrace()
