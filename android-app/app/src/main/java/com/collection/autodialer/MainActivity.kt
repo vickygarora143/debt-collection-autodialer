@@ -79,6 +79,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var cbAutoSms: CheckBox
     private lateinit var btnSmsTemplate: Button
 
+    // Version Validation Views
+    private lateinit var tvLoginVersion: TextView
+    private lateinit var tvHeaderSubtext: TextView
+
     // Native Android File Picker for Agent Self-Allocation
     private val filePickerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -150,6 +154,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
         cbAutoSms = findViewById(R.id.cbAutoSms)
         btnSmsTemplate = findViewById(R.id.btnSmsTemplate)
+
+        tvLoginVersion = findViewById(R.id.tvLoginVersion)
+        tvHeaderSubtext = findViewById(R.id.tvHeaderSubtext)
+        displayAppVersion()
 
         setupButtonListeners()
     }
@@ -724,6 +732,29 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    private fun displayAppVersion() {
+        try {
+            val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0)
+            }
+            val vName = pInfo.versionName ?: "1.0.8"
+            val vCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                pInfo.versionCode.toLong()
+            }
+            val versionStr = "v$vName (Build $vCode)"
+            tvLoginVersion.text = "Version $versionStr • Verified"
+            tvHeaderSubtext.text = "Auto-Dialer Active • $versionStr"
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

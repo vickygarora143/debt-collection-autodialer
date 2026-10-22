@@ -76,6 +76,20 @@
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
+            <!-- Dynamic Version Validation Badge -->
+            <TextView
+                android:id="@+id/tvLoginVersion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="#EFF6FF"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:text="Version v1.0.8 (Build 8)"
+                android:textColor="#1D4ED8"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
             <!-- Agent ID Input -->
             <TextView
                 android:layout_width="wrap_content"
