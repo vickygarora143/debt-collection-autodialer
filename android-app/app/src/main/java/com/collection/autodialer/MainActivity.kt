@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     var isCallInProgress = false
 
     // UI View References
+    private lateinit var layoutNativeSplash: View
     private lateinit var layoutLogin: View
     private lateinit var layoutDialer: LinearLayout
     private lateinit var layoutLocked: LinearLayout
@@ -135,6 +136,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun initViews() {
         webView = findViewById(R.id.webView)
+        layoutNativeSplash = findViewById(R.id.layoutNativeSplash)
         layoutLogin = findViewById(R.id.layoutLogin)
         layoutDialer = findViewById(R.id.layoutDialer)
         layoutLocked = findViewById(R.id.layoutLocked)
@@ -878,13 +880,14 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun setupLiveSyncWebView() {
         webView = findViewById(R.id.webView)
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#F8FAFC"))
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.allowContentAccess = true
-        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.mediaPlaybackRequiresUserGesture = false
@@ -892,6 +895,17 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         webView.addJavascriptInterface(AndroidTelephonyBridge(this), "AndroidBridge")
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                if (::layoutNativeSplash.isInitialized && layoutNativeSplash.visibility == View.VISIBLE) {
+                    layoutNativeSplash.animate()
+                        .alpha(0f)
+                        .setDuration(250)
+                        .withEndAction { layoutNativeSplash.visibility = View.GONE }
+                        .start()
+                }
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
                 return handleUrlOverride(url)

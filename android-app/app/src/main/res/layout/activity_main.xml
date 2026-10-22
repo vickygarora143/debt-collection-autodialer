@@ -16,6 +16,48 @@
         android:layout_height="match_parent"
         android:visibility="visible" />
 
+    <!-- NATIVE TURBO SPLASH HUD (Eliminates white screen on app start) -->
+    <LinearLayout
+        android:id="@+id/layoutNativeSplash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F8FAFC"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:src="@android:drawable/sym_def_app_icon"
+            android:contentDescription="DebtFlow Logo" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="DebtFlow Pro"
+            android:textColor="#0F172A"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="TURBO AUTO-DIALER ENGINE"
+            android:textColor="#64748B"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08" />
+
+        <ProgressBar
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginTop="24dp"
+            android:indeterminateTint="#2563EB" />
+    </LinearLayout>
+
     <!-- ======================================================== -->
     <!-- 1. EMERGENCY KILL-SWITCH SCREEN (PRISTINE LIGHT THEME)   -->
     <!-- ======================================================== -->

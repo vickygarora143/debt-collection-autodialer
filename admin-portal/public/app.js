@@ -17,8 +17,18 @@ let cockpitAudioMode = 'HEADSET';
 let allAgentsCache = [];
 let currentUploadedCases = [];
 
+function dismissSplashLoader() {
+    const splash = document.getElementById('app-splash-loader');
+    if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => { splash.style.display = 'none'; }, 200);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    lucide.createIcons();
+    try {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (e) {}
     initDatePickers();
     initDropZone();
 
@@ -34,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         showLoginView();
     }
+    dismissSplashLoader();
 });
 
 // ----------------------------------------------------
@@ -129,24 +140,27 @@ function showLoginView() {
     document.getElementById('view-login').classList.remove('hidden');
     document.getElementById('view-admin').classList.add('hidden');
     document.getElementById('view-agent').classList.add('hidden');
+    dismissSplashLoader();
 }
 
 function showAdminView() {
     document.getElementById('view-login').classList.add('hidden');
     document.getElementById('view-admin').classList.remove('hidden');
     document.getElementById('view-agent').classList.add('hidden');
-    lucide.createIcons();
+    try { if (typeof lucide !== 'undefined') lucide.createIcons(); } catch(e) {}
     loadDashboardStats();
     loadAgents();
     loadReports();
+    dismissSplashLoader();
 }
 
 function showAgentView() {
     document.getElementById('view-login').classList.add('hidden');
     document.getElementById('view-admin').classList.add('hidden');
     document.getElementById('view-agent').classList.remove('hidden');
-    lucide.createIcons();
+    try { if (typeof lucide !== 'undefined') lucide.createIcons(); } catch(e) {}
     initAgentCockpit();
+    dismissSplashLoader();
 }
 
 // ----------------------------------------------------
