@@ -654,7 +654,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     val serverVersionCode = json.optInt("versionCode", 1)
                     val serverVersionName = json.optString("versionName", "1.0.4")
                     val apkUrl = json.optString("apkUrl", "")
-                    val changelog = json.optString("changelog", "Automated SMS on Dial, Smart Templates, Seamless In-App Updates")
+                    val changelog = json.optString("changelog", "Automated SMS on Dial, Smart Templates, Seamless Updates")
 
                     if (serverVersionCode > currentVersionCode) {
                         handler.post {
@@ -670,93 +670,14 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun showUpdatePromptDialog(serverVersionName: String, changelog: String, apkUrl: String) {
         AlertDialog.Builder(this)
-            .setTitle("New Update Available ($serverVersionName)")
+            .setTitle("Update Available ($serverVersionName)")
             .setMessage("What's New:\n• $changelog\n\nUpgrade now for latest features & bug fixes.")
-            .setPositiveButton("1-Tap In-App Update") { _, _ ->
-                downloadAndInstallApk(apkUrl, serverVersionName)
-            }
-            .setNeutralButton("Browser Link") { _, _ ->
+            .setPositiveButton("Update Now") { _, _ ->
                 val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
                 startActivity(browserIntent)
             }
             .setNegativeButton("Later", null)
-            .setCancelable(false)
             .show()
-    }
-
-    private fun downloadAndInstallApk(apkUrl: String, versionName: String) {
-        val progressDialog = AlertDialog.Builder(this)
-            .setTitle("Downloading Update")
-            .setMessage("Downloading DebtFlow v$versionName... Please wait.")
-            .setCancelable(false)
-            .create()
-        progressDialog.show()
-
-        thread {
-            try {
-                val url = URL(apkUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connect()
-
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    throw Exception("Server returned HTTP ${connection.responseCode} ${connection.responseMessage}")
-                }
-
-                val downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: cacheDir
-                val apkFile = File(downloadDir, "DebtFlow-Update.apk")
-                if (apkFile.exists()) apkFile.delete()
-
-                val input = connection.inputStream
-                val output = FileOutputStream(apkFile)
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                }
-                output.flush()
-                output.close()
-                input.close()
-
-                handler.post {
-                    progressDialog.dismiss()
-                    launchApkInstaller(apkFile)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                handler.post {
-                    progressDialog.dismiss()
-                    Toast.makeText(this@MainActivity, "Download failed: ${e.message}. Opening browser link...", Toast.LENGTH_LONG).show()
-                    val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
-                    startActivity(browserIntent)
-                }
-            }
-        }
-    }
-
-    private fun launchApkInstaller(apkFile: File) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!packageManager.canRequestPackageInstalls()) {
-                    Toast.makeText(this, "Please allow 'Install unknown apps' permission to update", Toast.LENGTH_LONG).show()
-                    val permissionIntent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = android.net.Uri.parse("package:$packageName")
-                    }
-                    startActivity(permissionIntent)
-                    return
-                }
-            }
-
-            val apkUri = FileProvider.getUriForFile(this, "${packageName}.provider", apkFile)
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(installIntent)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Installer error: ${e.message}", Toast.LENGTH_LONG).show()
-        }
     }
 
     private fun handleAgentFileImport(uri: android.net.Uri) {
