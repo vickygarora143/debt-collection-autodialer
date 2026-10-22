@@ -930,7 +930,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             isCallInProgress = false
             stopCallTimerTicker()
             tvCallStatus.text = "Call Ended • Tap Outcome Tag"
-            startCountdownTimer()
         }
 
         val agentId = SecurityManager.getAgentId(this)
