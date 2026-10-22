@@ -1046,8 +1046,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private fun checkPermissions() {
         val perms = arrayOf(
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALL_LOG
+            Manifest.permission.READ_PHONE_STATE
         )
         val missing = perms.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) {

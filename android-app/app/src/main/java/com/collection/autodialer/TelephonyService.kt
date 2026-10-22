@@ -142,39 +142,12 @@ class TelephonyService(private val context: Context, private val listener: CallS
     }
 
     /**
-     * Inspects the native Android CallLog provider to distinguish between:
-     * 1) Real Connected Talk (CallLog.Calls.DURATION > 0)
-     * 2) Unanswered / Ringing Dropped / Busy (CallLog.Calls.DURATION == 0)
+     * Pure in-memory duration tracking (No CallLog access needed - 100% Agent Privacy Protected)
      */
     fun getAccurateTalkDuration(dialedNumber: String): Int {
-        try {
-            if (androidx.core.content.ContextCompat.checkSelfPermission(
-                    context,
-                    android.Manifest.permission.READ_CALL_LOG
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                val cursor = context.contentResolver.query(
-                    android.provider.CallLog.Calls.CONTENT_URI,
-                    arrayOf(
-                        android.provider.CallLog.Calls.NUMBER,
-                        android.provider.CallLog.Calls.DURATION,
-                        android.provider.CallLog.Calls.TYPE
-                    ),
-                    null,
-                    null,
-                    "${android.provider.CallLog.Calls.DATE} DESC"
-                )
-                cursor?.use {
-                    if (it.moveToFirst()) {
-                        val durIndex = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
-                        if (durIndex != -1) {
-                            return it.getInt(durIndex)
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        if (callStartTime > 0L) {
+            val dur = ((System.currentTimeMillis() - callStartTime) / 1000).toInt()
+            return if (dur > 0) dur else 0
         }
         return 0
     }
