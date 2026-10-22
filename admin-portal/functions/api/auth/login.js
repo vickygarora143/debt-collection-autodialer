@@ -73,23 +73,10 @@ export async function onRequestPost(context) {
                 }), { status: 403, headers: { 'Content-Type': 'application/json' } });
             }
 
-            // HARDWARE DEVICE BINDING:
-            if (!agent.hardware_uuid && hardware_uuid) {
-                // First-time login: Bind device hardware UUID permanently
-                await env.DB.prepare(
-                    'UPDATE agents SET hardware_uuid = ?, device_model = ?, last_login = CURRENT_TIMESTAMP, last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?'
-                ).bind(hardware_uuid, device_model || 'Unknown Android', agent.id).run();
-            } else if (agent.hardware_uuid && hardware_uuid && agent.hardware_uuid !== hardware_uuid) {
-                // Unauthorized Device Attempt (Anti-Sharing violation!)
-                return new Response(JSON.stringify({
-                    error: 'DEVICE MISMATCH: This account is bound to another phone. APK sharing is strictly prohibited.',
-                    code: 'DEVICE_UNAUTHORIZED'
-                }), { status: 403, headers: { 'Content-Type': 'application/json' } });
-            } else {
-                await env.DB.prepare(
-                    'UPDATE agents SET last_login = CURRENT_TIMESTAMP, last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?'
-                ).bind(agent.id).run();
-            }
+            // Hardware binding removed: Agent can log in from any phone
+            await env.DB.prepare(
+                'UPDATE agents SET last_login = CURRENT_TIMESTAMP, last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?'
+            ).bind(agent.id).run();
 
             return new Response(JSON.stringify({
                 success: true,

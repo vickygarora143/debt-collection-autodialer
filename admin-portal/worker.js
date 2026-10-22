@@ -77,14 +77,6 @@ export default {
                     }), { status: 403, headers: corsHeaders });
                 }
 
-                const hwUuid = body.hardware_uuid;
-                if (hwUuid && !hwUuid.startsWith('WEB_')) {
-                    // Update latest active device model without locking out other phones
-                    await env.DB.prepare(
-                        'UPDATE agents SET hardware_uuid = ?, device_model = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?'
-                    ).bind(hwUuid, body.device_model || 'Android Phone', agent.id).run();
-                }
-
                 await env.DB.prepare('UPDATE agents SET last_login = CURRENT_TIMESTAMP, last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?').bind(agent.id).run();
 
                 return new Response(JSON.stringify({
@@ -159,41 +151,9 @@ export default {
                 return new Response(JSON.stringify({ success: true, message: `Password for ${agent.agent_code} updated successfully!` }), { headers: corsHeaders });
             }
 
-            // Offline Batch Sync Endpoint (Syncs calls made when internet was OFF)
+            // Offline Batch Sync Endpoint (Zero-server data retention: calls remain local to phone)
             if (url.pathname === '/api/calls/batch-sync' && method === 'POST') {
-                const body = await request.json();
-                const rawAgent = body.agent_id || body.agent_code || 1;
-                let agentId = parseInt(rawAgent);
-                const agentLookup = await env.DB.prepare('SELECT id FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
-                if (agentLookup) agentId = agentLookup.id;
-                const logs = body.logs || [];
-
-                if (logs.length > 0) {
-                    const stmts = [];
-                    for (const l of logs) {
-                        stmts.push(
-                            env.DB.prepare(
-                                `INSERT INTO call_logs (allocation_id, agent_id, dialed_phone, call_duration_seconds, disposition, ptp_amount, ptp_date, called_at)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`
-                            ).bind(
-                                l.allocation_id ? parseInt(l.allocation_id) : null,
-                                agentId,
-                                l.dialed_phone || l.phone || '',
-                                parseInt(l.call_duration_seconds) || 0,
-                                l.disposition || 'RNR',
-                                l.ptp_amount ? parseFloat(l.ptp_amount) : null,
-                                l.ptp_date || null,
-                                l.called_at || null
-                            )
-                        );
-                    }
-
-                    for (let i = 0; i < stmts.length; i += 50) {
-                        await env.DB.batch(stmts.slice(i, i + 50));
-                    }
-                }
-
-                return new Response(JSON.stringify({ success: true, synced_count: logs.length, message: `Synced ${logs.length} offline calls to Cloudflare D1.` }), { headers: corsHeaders });
+                return new Response(JSON.stringify({ success: true, message: 'Local dialer mode: zero server data retention.' }), { headers: corsHeaders });
             }
 
             // 1. Dashboard Stats

@@ -79,7 +79,7 @@ async function handleUserLogin(e) {
     try {
         const payload = currentRole === 'admin'
             ? { role: 'admin', username, password }
-            : { role: 'agent', agent_code: username, password, hardware_uuid: 'WEB_' + Date.now().toString(36) };
+            : { role: 'agent', agent_code: username, password };
 
         const res = await fetch('/api/auth/login', {
             method: 'POST',
@@ -1003,10 +1003,6 @@ function renderAgentsTable(agents) {
             ? `<span class="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">REVOKED (LOCKED)</span>`
             : `<span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">ACTIVE</span>`;
 
-        const deviceText = a.hardware_uuid 
-            ? `<div class="font-mono text-[11px] text-slate-700 flex items-center gap-1"><i data-lucide="smartphone" class="w-3.5 h-3.5 text-blue-600"></i> ${a.device_model || 'Bound Device'}</div>`
-            : `<span class="text-slate-400 text-[11px] italic">Waiting 1st Login</span>`;
-
         return `
             <tr class="hover:bg-slate-50 transition">
                 <td class="py-3 px-4 font-bold text-slate-900 font-mono">${a.agent_code}</td>
@@ -1014,7 +1010,6 @@ function renderAgentsTable(agents) {
                     <div class="text-slate-900 font-semibold">${a.full_name}</div>
                     <div class="text-[11px] text-slate-500 font-mono">${a.phone}</div>
                 </td>
-                <td class="py-3 px-4">${deviceText}</td>
                 <td class="py-3 px-4 font-mono font-bold text-slate-700">${a.assigned_cases || 0}</td>
                 <td class="py-3 px-4 font-mono font-bold text-emerald-700">${a.calls_today || 0}</td>
                 <td class="py-3 px-4">${statusBadge}</td>
@@ -1024,7 +1019,6 @@ function renderAgentsTable(agents) {
                         : `<button onclick="toggleKillSwitch(${a.id}, 'REVOKE')" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Kill-Switch</button>`
                     }
                     <button onclick="openChangeAgentPasswordModal(${a.id}, '${a.agent_code}')" class="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-800 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Change Agent Password">Pass</button>
-                    ${a.hardware_uuid ? `<button onclick="resetDevice(${a.id})" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Clear Phone Lock">Reset Lock</button>` : ''}
                 </td>
             </tr>
         `;
@@ -1210,26 +1204,8 @@ function updateNetworkStatusUI(isOnline) {
 }
 
 async function syncOfflineCalls() {
-    const offlineLogs = JSON.parse(localStorage.getItem('debtflow_offline_logs') || '[]');
-    if (offlineLogs.length === 0 || !currentAgent) return;
-
-    try {
-        const res = await fetch('/api/calls/batch-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                agent_id: currentAgent.id,
-                logs: offlineLogs
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            console.log(`Synced ${offlineLogs.length} offline calls to Cloudflare D1.`);
-            localStorage.removeItem('debtflow_offline_logs');
-        }
-    } catch (e) {
-        console.warn('Sync attempt postponed:', e);
-    }
+    // Zero-server data retention: calls remain strictly local to the agent's phone SIM
+    return;
 }
 
 // ----------------------------------------------------
