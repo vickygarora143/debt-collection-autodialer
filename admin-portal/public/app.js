@@ -587,20 +587,13 @@ window.onNativeCallDisconnected = function(durationSeconds) {
     if (statDials) statDials.innerText = cockpitDialsCount;
 
     const statConn = document.getElementById('agent-stat-connected');
-    if (statConn) statConn.innerText = localStorage.getItem('debtflow_today_connected') || '0';
+    if (statConn) statConn.innerText = localStorage.getItem('debtflow_today_connected') || String(cockpitConnected);
 
     const statTalk = document.getElementById('agent-stat-talktime');
     if (statTalk) {
-        const talkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || '0', 10);
+        const talkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || String(cockpitTalkSecs), 10);
         const mins = Math.floor(talkSecs / 60);
         statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${talkSecs % 60}s`;
-    }
-    const statConn = document.getElementById('agent-stat-connected');
-    if (statConn) statConn.innerText = cockpitConnected;
-    const statTalk = document.getElementById('agent-stat-talktime');
-    if (statTalk) {
-        const mins = Math.floor(cockpitTalkSecs / 60);
-        statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${cockpitTalkSecs % 60}s`;
     }
 
     // Anonymous real-time telemetry ping (Zero customer data: only agentId and call seconds!)

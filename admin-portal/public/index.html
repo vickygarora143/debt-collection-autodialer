@@ -63,10 +63,20 @@
         <div style="width: 54px; height: 54px; border-radius: 18px; background: #2563eb; display: flex; align-items: center; justify-content: center; color: white; margin-bottom: 14px; box-shadow: 0 10px 25px -5px rgba(37,99,235,0.3);">
             <svg style="width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2;" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
         </div>
-        <div style="font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; margin-bottom: 4px;">DebtFlow<span style="color: #2563eb;">Pro</span></div>
+        <div style="font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; margin-bottom: 4px;">GDSDebt<span style="color: #2563eb;">Pro</span></div>
         <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.5px;">Starting Turbo Auto-Dialer...</div>
         <div class="splash-spinner"></div>
     </div>
+    <script>
+        // Bulletproof fail-safe: Force dismiss splash overlay within 1.2s regardless of network/CDN
+        setTimeout(function() {
+            var s = document.getElementById('app-splash-loader');
+            if (s && s.style.display !== 'none') {
+                s.style.opacity = '0';
+                setTimeout(function() { s.style.display = 'none'; }, 200);
+            }
+        }, 1200);
+    </script>
 
     <!-- ======================================================== -->
     <!-- 1. UNIFIED LOGIN SCREEN (AGENT ID AS LOGIN ID & ADMIN)   -->
@@ -78,7 +88,7 @@
                 <div class="w-12 h-12 mx-auto rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
                     <i data-lucide="phone-call" class="w-6 h-6"></i>
                 </div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">DebtFlow<span class="text-blue-600">Pro</span></h1>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">GDSDebt<span class="text-blue-600">Pro</span></h1>
                 <p class="text-xs text-slate-500 font-medium">Cloudflare D1 Enterprise Collection Auto-Dialer</p>
             </div>
 

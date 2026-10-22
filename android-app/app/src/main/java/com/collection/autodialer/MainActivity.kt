@@ -897,13 +897,12 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                if (::layoutNativeSplash.isInitialized && layoutNativeSplash.visibility == View.VISIBLE) {
-                    layoutNativeSplash.animate()
-                        .alpha(0f)
-                        .setDuration(250)
-                        .withEndAction { layoutNativeSplash.visibility = View.GONE }
-                        .start()
-                }
+                dismissNativeSplash()
+            }
+
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                super.onReceivedError(view, errorCode, description, failingUrl)
+                dismissNativeSplash()
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -935,6 +934,17 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
         webView.webChromeClient = WebChromeClient()
         webView.loadUrl("https://dialer.gdsdebtpro.workers.dev")
+        handler.postDelayed({ dismissNativeSplash() }, 1500)
+    }
+
+    private fun dismissNativeSplash() {
+        if (::layoutNativeSplash.isInitialized && layoutNativeSplash.visibility == View.VISIBLE) {
+            layoutNativeSplash.animate()
+                .alpha(0f)
+                .setDuration(250)
+                .withEndAction { layoutNativeSplash.visibility = View.GONE }
+                .start()
+        }
     }
 
     fun showWebView() {
