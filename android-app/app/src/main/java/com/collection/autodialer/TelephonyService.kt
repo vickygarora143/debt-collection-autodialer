@@ -1,7 +1,9 @@
 package com.collection.autodialer
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
@@ -9,6 +11,7 @@ import android.os.Build
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
+import androidx.core.content.ContextCompat
 
 class TelephonyService(private val context: Context, private val listener: CallStateEventListener) {
 
@@ -133,7 +136,16 @@ class TelephonyService(private val context: Context, private val listener: CallS
     }
 
     fun isCurrentlyInCall(): Boolean {
-        return isCallActive || telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE
+        return try {
+            if (isCallActive) return true
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            isCallActive
+        }
     }
 
     fun resetCallState() {
