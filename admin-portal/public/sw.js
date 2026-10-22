@@ -1,5 +1,5 @@
 // DebtFlow Pro - Two-Tier Live-Sync Service Worker
-const CACHE_NAME = 'debtflow-live-v110';
+const CACHE_NAME = 'debtflow-live-v111';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
