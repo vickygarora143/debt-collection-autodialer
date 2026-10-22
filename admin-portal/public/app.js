@@ -896,48 +896,19 @@ async function handleAgentSelfUpload() {
     btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Loading...`;
     lucide.createIcons();
 
-    try {
-        if (!navigator.onLine) {
-            // 100% OFFLINE MODE: Load directly into RAM & phone storage (Zero Internet required)
-            cockpitCases = casesToUpload;
-            localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
-            cockpitIndex = 0;
-            renderCockpitCase();
-            closeAgentUploadModal();
-            document.getElementById('agent-file-input').value = '';
-            document.getElementById('agent-paste-numbers').value = '';
-            alert(`OFFLINE READY: ${casesToUpload.length} leads loaded into phone storage! You can start dialing immediately without internet.`);
-            return;
-        }
+    // 100% PRIVATE LOCAL STORAGE ONLY: Never send customer numbers or names to server
+    cockpitCases = casesToUpload;
+    localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
+    cockpitIndex = 0;
+    renderCockpitCase();
+    closeAgentUploadModal();
+    document.getElementById('agent-file-input').value = '';
+    document.getElementById('agent-paste-numbers').value = '';
 
-        const res = await fetch('/api/allocations/upload-agent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent_id: agentId, cases: casesToUpload })
-        });
-        const data = await res.json();
-        if (data.error) {
-            alert('Upload error: ' + data.error);
-        } else {
-            alert(`SUCCESS: ${data.message}`);
-            closeAgentUploadModal();
-            document.getElementById('agent-file-input').value = '';
-            document.getElementById('agent-paste-numbers').value = '';
-            loadAgentCasesAndStats();
-        }
-    } catch (e) {
-        // Safe offline fallback if network drops midway
-        cockpitCases = casesToUpload;
-        localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
-        cockpitIndex = 0;
-        renderCockpitCase();
-        closeAgentUploadModal();
-        alert(`OFFLINE READY: ${casesToUpload.length} leads saved directly to phone storage. Ready to dial!`);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue`;
-        lucide.createIcons();
-    }
+    btn.disabled = false;
+    btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue`;
+    lucide.createIcons();
+    alert(`100% PRIVATE: ${casesToUpload.length} leads loaded directly into your phone local storage! Zero numbers sent to any server.`);
 }
 
 // ----------------------------------------------------

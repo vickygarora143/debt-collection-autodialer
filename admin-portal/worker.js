@@ -357,48 +357,11 @@ export default {
 
                 agentId = agent.id;
 
-                // Flexible Upload: Clean Slate (replace) vs Add to Queue (append)
-                if (body.mode === 'replace') {
-                    await env.DB.prepare("UPDATE allocations SET status = 'ARCHIVED' WHERE assigned_agent_id = ? AND status = 'PENDING'").bind(agentId).run();
-                }
-
-                const batchName = `SelfUpload_${agent.agent_code}_${new Date().toISOString().slice(0, 10)}`;
-                const statements = [];
-
-                for (const item of cases) {
-                    let rawPhone = String(item.primary_phone || item.phone || item.mobile || '').replace(/\D/g, '');
-                    if (rawPhone.length === 12 && rawPhone.startsWith('91')) rawPhone = rawPhone.substring(2);
-                    if (rawPhone.length === 11 && rawPhone.startsWith('0')) rawPhone = rawPhone.substring(1);
-                    if (!rawPhone || rawPhone.length < 10) continue;
-
-                    statements.push(
-                        env.DB.prepare(
-                            `INSERT INTO allocations (
-                                batch_name, assigned_agent_id, customer_name, loan_account_no, 
-                                primary_phone, overdue_amount, dpd, bucket, status
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`
-                        ).bind(
-                            batchName,
-                            agentId,
-                            String(item.customer_name || item.name || 'Personal Debtor Lead').trim(),
-                            String(item.loan_account_no || item.loan_id || `SLF-${Date.now().toString().slice(-6)}`).trim(),
-                            rawPhone,
-                            parseFloat(item.overdue_amount || 0) || 0,
-                            parseInt(item.dpd || 0) || 0,
-                            String(item.bucket || 'SELF')
-                        )
-                    );
-                }
-
-                for (let i = 0; i < statements.length; i += 50) {
-                    await env.DB.batch(statements.slice(i, i + 50));
-                }
-
+                // ZERO CLOUD STORAGE POLICY: Do NOT persist customer phone numbers or debtor data to Cloudflare D1
                 return new Response(JSON.stringify({
                     success: true,
-                    total_cases: statements.length,
-                    batch_name: batchName,
-                    message: body.mode === 'replace' ? `Replaced queue with ${statements.length} fresh leads!` : `Added ${statements.length} leads to existing queue!`
+                    total_cases: cases.length,
+                    message: `${cases.length} leads loaded strictly into local phone memory. Zero customer records stored in cloud database.`
                 }), { headers: corsHeaders });
             }
 
