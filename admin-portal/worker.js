@@ -402,13 +402,13 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // Version Check API for in-app auto updates
+            // Version Check API for in-app auto updates (Set to 1 to suppress conflicting update prompts on previous APKs)
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 13,
+                    versionCode: 1,
                     versionName: "1.1.3",
-                    apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-Debug.apk",
-                    changelog: "Ultra-Fast Instant Launch: Native Splash HUD, zero-white-screen engine & flash memory caching"
+                    apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.1.3.apk",
+                    changelog: "DebtFlow Pro Stable Release"
                 }), { headers: corsHeaders });
             }
 
