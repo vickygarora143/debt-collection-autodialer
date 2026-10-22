@@ -430,10 +430,10 @@ export default {
             // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 6,
-                    versionName: "1.0.6",
-                    apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.0.apk",
-                    changelog: "24-Hour Ephemeral Security Auto-Purge, Smart RNR Auto-Capture & Recycler"
+                    versionCode: 7,
+                    versionName: "1.0.7",
+                    apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-Debug.apk",
+                    changelog: "Unique Agent Isolation, Non-Blank CSV Export, 1-Click Clear Queue, Smart RNR Auto-Capture"
                 }), { headers: corsHeaders });
             }
 
@@ -447,24 +447,56 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // Agent Shift Feedback Export (Point 2)
+            // Clear / Reset Agent Queue (Purge previous campaign)
+            if (url.pathname === '/api/allocations/clear-agent-queue' && method === 'POST') {
+                const body = await request.json();
+                const rawAgent = body.agent_id || body.agent_code || '0';
+                let agentId = parseInt(rawAgent);
+                const agentLookup = await env.DB.prepare('SELECT id FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
+                if (agentLookup) agentId = agentLookup.id;
+
+                if (!agentId || agentId <= 0) {
+                    return new Response(JSON.stringify({ error: 'Valid agent_id required' }), { status: 400, headers: corsHeaders });
+                }
+
+                // Archive remaining active cases for this agent
+                const res = await env.DB.prepare(
+                    "UPDATE allocations SET status = 'ARCHIVED' WHERE assigned_agent_id = ? AND status != 'RESOLVED'"
+                ).bind(agentId).run();
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    message: "Previous campaign cleared! Your queue is now clean.",
+                    cleared_cases: res.meta?.changes || 0
+                }), { headers: corsHeaders });
+            }
+
+            // Agent Shift Feedback Export (LEFT JOIN guarantees zero blank rows even if allocations were modified)
             if (url.pathname === '/api/reports/agent-export' && method === 'GET') {
-                const agentId = parseInt(url.searchParams.get('agent_id') || '0');
+                const rawAgent = url.searchParams.get('agent_id') || url.searchParams.get('agent_code') || '0';
+                let agentId = parseInt(rawAgent);
+                const agentLookup = await env.DB.prepare('SELECT id FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
+                if (agentLookup) agentId = agentLookup.id;
+
                 const { results } = await env.DB.prepare(
-                    `SELECT cl.called_at, al.customer_name, cl.dialed_phone, al.loan_account_no, 
+                    `SELECT cl.called_at, COALESCE(al.customer_name, 'Direct Contact') as customer_name, cl.dialed_phone, COALESCE(al.loan_account_no, '-') as loan_account_no, 
                             cl.call_duration_seconds, cl.disposition, cl.ptp_amount, cl.ptp_date
                      FROM call_logs cl
-                     JOIN allocations al ON al.id = cl.allocation_id
+                     LEFT JOIN allocations al ON al.id = cl.allocation_id
                      WHERE cl.agent_id = ?
-                     ORDER BY cl.called_at DESC LIMIT 500`
+                     ORDER BY cl.called_at DESC LIMIT 1000`
                 ).bind(agentId).all();
 
                 return new Response(JSON.stringify({ records: results || [] }), { headers: corsHeaders });
             }
 
-            // 7. Agent Cases Queue (Supports Fresh Queue & RNR Retry Mode)
+            // 7. Agent Cases Queue (Supports Fresh Queue & RNR Retry Mode with 100% Agent Isolation)
             if (url.pathname === '/api/allocations/my-cases' && method === 'GET') {
-                const agentId = parseInt(url.searchParams.get('agent_id') || '1');
+                const rawAgent = url.searchParams.get('agent_id') || url.searchParams.get('agent_code') || '1';
+                let agentId = parseInt(rawAgent);
+                const agentLookup = await env.DB.prepare('SELECT id FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
+                if (agentLookup) agentId = agentLookup.id;
+
                 const mode = url.searchParams.get('mode') || 'fresh';
 
                 // Mandatory 24-Hour Security Auto-Purge of historical call records
@@ -480,13 +512,13 @@ export default {
                     query = `SELECT id, customer_name, loan_account_no, primary_phone, overdue_amount, dpd, bucket, status, call_attempts, last_disposition 
                              FROM allocations 
                              WHERE assigned_agent_id = ? AND last_disposition = 'RNR' AND status != 'RESOLVED' AND call_attempts < 3
-                             ORDER BY id ASC LIMIT 300`;
+                             ORDER BY id ASC LIMIT 500`;
                 } else {
                     // Fresh uncalled leads (excluding resolved promises & settlements)
                     query = `SELECT id, customer_name, loan_account_no, primary_phone, overdue_amount, dpd, bucket, status, call_attempts, last_disposition 
                              FROM allocations 
                              WHERE assigned_agent_id = ? AND status NOT IN ('RESOLVED', 'ARCHIVED')
-                             ORDER BY id ASC LIMIT 300`;
+                             ORDER BY id ASC LIMIT 500`;
                 }
 
                 const { results } = await env.DB.prepare(query).bind(agentId).all();
@@ -504,9 +536,13 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // 8. Log Call Disposition with Instant 24h Auto-Purge
+            // 8. Log Call Disposition with Instant 24h Auto-Purge & Agent Resolution
             if (url.pathname === '/api/calls/log' && method === 'POST') {
                 const body = await request.json();
+                const rawAgent = body.agent_id || body.agent_code || 1;
+                let agentId = parseInt(rawAgent);
+                const agentLookup = await env.DB.prepare('SELECT id FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
+                if (agentLookup) agentId = agentLookup.id;
 
                 // Auto-purge any historical records older than 24 hours
                 try {
@@ -520,7 +556,7 @@ export default {
                      VALUES (?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     body.allocation_id,
-                    body.agent_id || 1,
+                    agentId,
                     body.dialed_phone,
                     body.call_duration_seconds || 0,
                     body.disposition,

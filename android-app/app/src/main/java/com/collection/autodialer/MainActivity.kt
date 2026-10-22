@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var btnAudioToggle: Button
     private lateinit var btnAgentImport: Button
     private lateinit var btnRefreshQueue: Button
+    private lateinit var btnClearQueue: Button
     private lateinit var btnExportFeedback: Button
     private lateinit var layoutDispositions: LinearLayout
 
@@ -143,6 +144,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         btnAudioToggle = findViewById(R.id.btnAudioToggle)
         btnAgentImport = findViewById(R.id.btnAgentImport)
         btnRefreshQueue = findViewById(R.id.btnRefreshQueue)
+        btnClearQueue = findViewById(R.id.btnClearQueue)
         btnExportFeedback = findViewById(R.id.btnExportFeedback)
         layoutDispositions = findViewById(R.id.layoutDispositions)
 
@@ -171,6 +173,41 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 val mode = if (btnRefreshQueue.text.toString().contains("RNR", ignoreCase = true)) "rnr" else "fresh"
                 fetchAssignedQueue(agentId, showToast = true, mode = mode)
             }
+        }
+
+        // Clear / Delete Previous Campaign Queue (Point 3)
+        btnClearQueue.setOnClickListener {
+            val agentId = SecurityManager.getAgentId(this)
+            if (agentId == -1) return@setOnClickListener
+
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Clear Active Campaign?")
+                .setMessage("Are you sure you want to remove all remaining cases from your active queue? This will give you a fresh, clean slate.")
+                .setPositiveButton("Clear Queue") { _, _ ->
+                    thread {
+                        try {
+                            val payload = JSONObject().apply {
+                                put("agent_id", agentId)
+                            }
+                            val res = ApiClient.post("/api/allocations/clear-agent-queue", payload)
+                            handler.post {
+                                res.onSuccess {
+                                    assignedCases.clear()
+                                    currentCaseIndex = 0
+                                    deleteFile("offline_cases.json")
+                                    updateDebtorCard()
+                                    Toast.makeText(this@MainActivity, "Queue cleared! Ready for fresh import.", Toast.LENGTH_SHORT).show()
+                                }.onFailure { err ->
+                                    Toast.makeText(this@MainActivity, "Failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         // Export daily feedback / shift report

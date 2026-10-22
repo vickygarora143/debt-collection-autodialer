@@ -194,26 +194,57 @@ async function exportAgentFeedback() {
 
         const headers = ["Timestamp", "Customer Name", "Phone", "Loan Account", "Duration (sec)", "Disposition", "PTP Amount", "PTP Date"];
         const rows = records.map(r => [
-            `"${r.called_at}"`,
-            `"${r.customer_name || ''}"`,
-            `"${r.dialed_phone}"`,
-            `"${r.loan_account_no || ''}"`,
+            `"${String(r.called_at || '').replace(/"/g, '""')}"`,
+            `"${String(r.customer_name || '').replace(/"/g, '""')}"`,
+            `"${String(r.dialed_phone || '').replace(/"/g, '""')}"`,
+            `"${String(r.loan_account_no || '').replace(/"/g, '""')}"`,
             r.call_duration_seconds || 0,
-            `"${r.disposition || ''}"`,
+            `"${String(r.disposition || '').replace(/"/g, '""')}"`,
             r.ptp_amount || 0,
-            `"${r.ptp_date || ''}"`
+            `"${String(r.ptp_date || '').replace(/"/g, '""')}"`
         ]);
 
-        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-        const encodedUri = encodeURI(csvContent);
+        // UTF-8 BOM (\uFEFF) ensures clean Microsoft Excel formatting and Blob download prevents truncation on '#'
+        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `My_Feedback_${currentAgent.agent_code}_${new Date().toISOString().slice(0,10)}.csv`);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `DebtFlow_Feedback_${currentAgent.agent_code}_${new Date().toISOString().slice(0, 10)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     } catch (e) {
         alert('Failed to export feedback: ' + e.message);
+    }
+}
+
+// 1-Click Clear / Delete Previous Campaign Queue
+async function clearAgentCampaign() {
+    if (!currentAgent) return;
+    const confirmClear = confirm(`Are you sure you want to remove all remaining cases from your active queue?\n\nThis will clear the previous campaign so you can start fresh today.`);
+    if (!confirmClear) return;
+
+    try {
+        const res = await fetch('/api/allocations/clear-agent-queue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent_id: currentAgent.id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            cockpitCases = [];
+            cockpitIndex = 0;
+            localStorage.removeItem('debtflow_cached_cases_' + currentAgent.id);
+            document.getElementById('agent-stat-queue').innerText = '0';
+            renderCockpitCase();
+            alert('Previous campaign cleared! Your queue is now 0. You can import fresh leads now.');
+        } else {
+            alert('Error clearing queue: ' + (data.error || 'Server error'));
+        }
+    } catch (e) {
+        alert('Failed to clear queue: ' + e.message);
     }
 }
 

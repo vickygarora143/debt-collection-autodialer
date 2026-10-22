@@ -246,6 +246,17 @@
                 android:textStyle="bold" />
 
             <Button
+                android:id="@+id/btnClearQueue"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:backgroundTint="#FFF1F2"
+                android:text="🗑️ Clear"
+                android:textColor="#E11D48"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Button
                 android:id="@+id/btnAudioToggle"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
@@ -253,8 +264,6 @@
                 android:backgroundTint="#F1F5F9"
                 android:text="Earphone"
                 android:textColor="#059669"
-                android:textSize="11sp"
-                android:textStyle="bold" />
                 android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
