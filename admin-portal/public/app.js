@@ -280,10 +280,11 @@ async function loadAgentCasesAndStats() {
     }
 }
 
-// Pure Turbo Auto-Dialer State (Ultra-Low Latency & High Call Velocity)
+// Pure Turbo Auto-Dialer State (Ultra-Low Latency & Market Recovery Standards)
 let turboAutoDialing = false;
 let turboPaceMode = 'turbo'; // 'turbo' (1.2s), 'standard' (2.5s), 'manual'
 let turboPacingTimer = null;
+let cockpitCallStartTime = 0;
 let cockpitDialsCount = parseInt(localStorage.getItem('debtflow_today_dials') || '0', 10);
 
 function setTurboPace(mode) {
@@ -316,7 +317,7 @@ function renderCockpitCase() {
         document.getElementById('cockpit-case-amount').innerText = "₹ 0";
         document.getElementById('cockpit-case-dpd').innerText = "DPD: 0 Days";
         document.getElementById('cockpit-case-bucket').innerText = "DONE";
-        document.getElementById('cockpit-call-status-text').innerText = "Ready";
+        document.getElementById('cockpit-call-status-text').innerText = "Ready to Dial";
         document.getElementById('cockpit-call-timer').innerText = "00:00";
         const prog = document.getElementById('agent-stat-prog');
         if (prog) prog.innerText = "0 / 0";
@@ -327,8 +328,21 @@ function renderCockpitCase() {
         return;
     }
 
+    const dialedCount = cockpitCases.filter(c => c._dialed).length;
+    const remainingCount = cockpitCases.length - dialedCount;
+
+    // Progress Stats
+    const prog = document.getElementById('agent-stat-prog');
+    if (prog) prog.innerText = `${dialedCount} / ${cockpitCases.length} Dialed`;
+    const qLeft = document.getElementById('agent-stat-queue');
+    if (qLeft) qLeft.innerText = remainingCount;
+    const counter = document.getElementById('cockpit-case-counter');
+    if (counter) counter.innerText = `Lead #${cockpitIndex + 1} of ${cockpitCases.length}`;
+
     const item = cockpitCases[cockpitIndex];
-    document.getElementById('cockpit-case-name').innerText = item.customer_name;
+    if (!item) return;
+
+    document.getElementById('cockpit-case-name').innerText = item.customer_name + (item._dialed ? ' (Dialed ✓)' : '');
     document.getElementById('cockpit-case-loan').innerText = `Loan Acc: ${item.loan_account_no}`;
     
     const phone = String(item.primary_phone || '');
@@ -340,16 +354,8 @@ function renderCockpitCase() {
     document.getElementById('cockpit-case-dpd').innerText = `DPD: ${item.dpd || 0} Days`;
     document.getElementById('cockpit-case-bucket').innerText = item.bucket || 'BUCKET 1';
 
-    // Update Progress Stats
-    const prog = document.getElementById('agent-stat-prog');
-    if (prog) prog.innerText = `${cockpitIndex + 1} / ${cockpitCases.length}`;
-    const qLeft = document.getElementById('agent-stat-queue');
-    if (qLeft) qLeft.innerText = Math.max(0, cockpitCases.length - cockpitIndex - 1);
-    const counter = document.getElementById('cockpit-case-counter');
-    if (counter) counter.innerText = `Lead #${cockpitIndex + 1} of ${cockpitCases.length}`;
-
     if (!cockpitCalling) {
-        document.getElementById('cockpit-call-status-text').innerText = "Ready to Dial";
+        document.getElementById('cockpit-call-status-text').innerText = item._dialed ? "Lead Dialed • Ready for Next" : "Ready to Dial";
         document.getElementById('cockpit-call-timer').innerText = "00:00";
     }
 }
@@ -367,6 +373,19 @@ function startTurboAutoDial() {
         alert('Please import cases first using "+ Import List" or tap "Refresh".');
         return;
     }
+
+    // Check if current case is already dialed, if so advance to first undialed
+    if (cockpitCases[cockpitIndex] && cockpitCases[cockpitIndex]._dialed) {
+        let firstUndialed = cockpitCases.findIndex(c => !c._dialed);
+        if (firstUndialed !== -1) {
+            cockpitIndex = firstUndialed;
+            renderCockpitCase();
+        } else {
+            alert('All leads in queue have already been dialed! Tap "+ Import List" or "Clear Queue" for a new batch.');
+            return;
+        }
+    }
+
     turboAutoDialing = true;
     cockpitPaused = false;
     updateTurboDialerUI(true);
@@ -404,9 +423,44 @@ function updateTurboDialerUI(active) {
 function advanceCockpitCase(direction) {
     clearTimeout(turboPacingTimer);
     if (cockpitCases.length === 0) return;
-    cockpitIndex = (cockpitIndex + direction + cockpitCases.length) % cockpitCases.length;
+
+    if (direction > 0) {
+        // Mark current as processed
+        if (cockpitCases[cockpitIndex]) {
+            cockpitCases[cockpitIndex]._dialed = true;
+        }
+        // Look for next un-dialed lead
+        let nextIndex = -1;
+        for (let i = cockpitIndex + 1; i < cockpitCases.length; i++) {
+            if (!cockpitCases[i]._dialed) {
+                nextIndex = i;
+                break;
+            }
+        }
+        if (nextIndex === -1) {
+            // Check from beginning
+            for (let i = 0; i < cockpitCases.length; i++) {
+                if (!cockpitCases[i]._dialed) {
+                    nextIndex = i;
+                    break;
+                }
+            }
+        }
+        if (nextIndex === -1) {
+            // All dialed!
+            stopTurboAutoDial();
+            renderCockpitCase();
+            document.getElementById('cockpit-call-status-text').innerText = "Queue Complete! All leads dialed ✓";
+            alert('Campaign Complete: All leads have been dialed!');
+            return;
+        }
+        cockpitIndex = nextIndex;
+    } else {
+        cockpitIndex = (cockpitIndex - 1 + cockpitCases.length) % cockpitCases.length;
+    }
+
     renderCockpitCase();
-    if (turboAutoDialing && !cockpitCalling && !cockpitPaused) {
+    if (turboAutoDialing && !cockpitPaused) {
         triggerCockpitDial();
     }
 }
@@ -423,8 +477,13 @@ function triggerCockpitDial() {
     }
 
     const item = cockpitCases[cockpitIndex];
+    if (!item) return;
+
+    // Immediately flag this lead as DIALED so it can never be duplicate-dialed!
+    item._dialed = true;
     cockpitCalling = true;
     cockpitTimerSecs = 0;
+    cockpitCallStartTime = Date.now();
 
     // Process Auto-SMS on Call
     const autoSmsChecked = document.getElementById('cockpit-auto-sms') ? document.getElementById('cockpit-auto-sms').checked : true;
@@ -444,7 +503,7 @@ function triggerCockpitDial() {
         smsStatusNote = " • Auto-SMS Sent 💬";
     }
 
-    document.getElementById('cockpit-call-status-text').innerText = `Dialing SIM 1 (${cockpitAudioMode})${smsStatusNote}...`;
+    document.getElementById('cockpit-call-status-text').innerText = `Dialing SIM (${cockpitAudioMode})${smsStatusNote}...`;
 
     // 1. Android Telephony Bridge Integration (Zero-Lag Direct Hardware GSM SIM Calling)
     if (window.AndroidBridge && item && item.primary_phone) {
@@ -481,16 +540,51 @@ window.onNativeCallConnected = function() {
 };
 
 window.onNativeCallDisconnected = function(durationSeconds) {
+    if (!cockpitCalling && cockpitTimerSecs === 0) return; // Prevent duplicate triggers
+
     cockpitTimerSecs = durationSeconds || 0;
     endCockpitCall();
 
     cockpitDialsCount++;
     localStorage.setItem('debtflow_today_dials', String(cockpitDialsCount));
-    const statDials = document.getElementById('agent-stat-dials');
-    if (statDials) statDials.innerText = cockpitDialsCount;
+
+    // Mark current case dialed
+    if (cockpitCases[cockpitIndex]) {
+        cockpitCases[cockpitIndex]._dialed = true;
+    }
+
+    // Find the next UN-DIALED lead sequentially
+    let nextIndex = -1;
+    for (let i = cockpitIndex + 1; i < cockpitCases.length; i++) {
+        if (!cockpitCases[i]._dialed) {
+            nextIndex = i;
+            break;
+        }
+    }
+    if (nextIndex === -1) {
+        for (let i = 0; i < cockpitCases.length; i++) {
+            if (!cockpitCases[i]._dialed) {
+                nextIndex = i;
+                break;
+            }
+        }
+    }
+
+    // If all cases are dialed, campaign finishes!
+    if (nextIndex === -1) {
+        stopTurboAutoDial();
+        renderCockpitCase();
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Campaign Complete ✓ (All Dialed)`;
+        alert(`🎉 Campaign Complete: All ${cockpitCases.length} debtor leads have been successfully dialed!`);
+        return;
+    }
+
+    // Advance queue to next un-dialed customer
+    cockpitIndex = nextIndex;
+    renderCockpitCase();
 
     if (!turboAutoDialing) {
-        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Ready`;
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Ready for Lead #${cockpitIndex + 1}`;
         return;
     }
 
@@ -500,23 +594,37 @@ window.onNativeCallDisconnected = function(durationSeconds) {
     }
 
     if (turboPaceMode === 'manual') {
-        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Tap Next Lead to Dial`;
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Tap [Dial Next] or [Next Lead]`;
         return;
     }
 
+    // Auto-pacing to next customer
     const delayMs = turboPaceMode === 'turbo' ? 1200 : 2500;
     const delaySec = (delayMs / 1000).toFixed(1);
-    document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Next in ${delaySec}s...`;
+    const nextName = cockpitCases[cockpitIndex] ? cockpitCases[cockpitIndex].customer_name : 'Next';
+    document.getElementById('cockpit-call-status-text').innerText = `Next: ${nextName} in ${delaySec}s...`;
 
     clearTimeout(turboPacingTimer);
     turboPacingTimer = setTimeout(() => {
         if (turboAutoDialing && !cockpitPaused && cockpitCases.length > 0) {
-            cockpitIndex = (cockpitIndex + 1) % cockpitCases.length;
-            renderCockpitCase();
             triggerCockpitDial();
         }
     }, delayMs);
 };
+
+// Dual Fail-Safe: Detect App Resume / Visibility Change
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && cockpitCalling) {
+        console.log('[TELEPHONY FAIL-SAFE] App resumed into foreground. Inspecting call state...');
+        const elapsed = Math.max(0, Math.floor((Date.now() - cockpitCallStartTime) / 1000));
+        setTimeout(() => {
+            if (cockpitCalling) {
+                console.log('[TELEPHONY FAIL-SAFE] Auto-terminating stuck call and advancing lead.');
+                window.onNativeCallDisconnected(elapsed);
+            }
+        }, 400);
+    }
+});
 
 function endCockpitCall() {
     cockpitCalling = false;

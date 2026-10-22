@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private var countdownTimer: CountDownTimer? = null
     private var callChronometerHandler: Handler? = null
     private var callStartTimeMillis: Long = 0
-    private var isCallInProgress = false
+    var isCallInProgress = false
 
     // UI View References
     private lateinit var layoutLogin: View
@@ -1070,10 +1070,19 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     override fun onResume() {
         super.onResume()
-        if (isCallInProgress) {
+        if (isCallInProgress || telephonyService.isCurrentlyInCall()) {
             isCallInProgress = false
             stopCallTimerTicker()
-            tvCallStatus.text = "Call Ended • Tap Outcome Tag"
+            val currentPhone = if (lastDialedPhone.isNotEmpty()) lastDialedPhone else (if (currentCaseIndex < assignedCases.size) assignedCases[currentCaseIndex].optString("primary_phone") else "")
+            val realDuration = telephonyService.getAccurateTalkDuration(currentPhone)
+            currentCallDuration = realDuration
+            tvCallStatus.text = "Call Ended • Pacing to Next"
+            telephonyService.resetCallState()
+
+            // Fail-safe dispatch to Live-Sync WebView immediately upon returning from phone call
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("window.onNativeCallDisconnected && window.onNativeCallDisconnected($realDuration);", null)
+            }
         }
 
         val agentId = SecurityManager.getAgentId(this)

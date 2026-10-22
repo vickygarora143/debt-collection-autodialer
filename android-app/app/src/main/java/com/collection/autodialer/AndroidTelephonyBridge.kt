@@ -14,6 +14,7 @@ class AndroidTelephonyBridge(private val activity: MainActivity) {
     fun makeSimCall(phoneNumber: String) {
         activity.runOnUiThread {
             activity.lastDialedPhone = phoneNumber
+            activity.isCallInProgress = true
             activity.telephonyService.placeCall(phoneNumber)
         }
     }

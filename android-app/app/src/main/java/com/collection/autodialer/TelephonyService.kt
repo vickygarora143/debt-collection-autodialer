@@ -34,6 +34,8 @@ class TelephonyService(private val context: Context, private val listener: CallS
     // 1. Direct Cellular SIM Calling
     fun placeCall(phoneNumber: String) {
         val cleanNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
+        isCallActive = true
+        callStartTime = System.currentTimeMillis()
         try {
             val callIntent = Intent(Intent.ACTION_CALL).apply {
                 data = Uri.parse("tel:$cleanNumber")
@@ -49,6 +51,8 @@ class TelephonyService(private val context: Context, private val listener: CallS
             context.startActivity(dialIntent)
         } catch (e: Exception) {
             e.printStackTrace()
+            isCallActive = false
+            callStartTime = 0L
         }
     }
 
@@ -107,14 +111,18 @@ class TelephonyService(private val context: Context, private val listener: CallS
             TelephonyManager.CALL_STATE_OFFHOOK -> {
                 // Call dialed / active
                 isCallActive = true
-                callStartTime = System.currentTimeMillis()
+                if (callStartTime == 0L) {
+                    callStartTime = System.currentTimeMillis()
+                }
                 listener.onCallConnected()
             }
             TelephonyManager.CALL_STATE_IDLE -> {
-                // Call ended or rejected
-                if (isCallActive) {
-                    isCallActive = false
-                    val duration = ((System.currentTimeMillis() - callStartTime) / 1000).toInt()
+                // Call ended, dropped, rejected, or canceled
+                val wasActive = isCallActive || callStartTime > 0L
+                isCallActive = false
+                if (wasActive) {
+                    val duration = if (callStartTime > 0L) ((System.currentTimeMillis() - callStartTime) / 1000).toInt() else 0
+                    callStartTime = 0L
                     listener.onCallDisconnected(if (duration > 0) duration else 0)
                 }
             }
@@ -122,6 +130,15 @@ class TelephonyService(private val context: Context, private val listener: CallS
                 // Outbound or inbound ringing
             }
         }
+    }
+
+    fun isCurrentlyInCall(): Boolean {
+        return isCallActive || telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE
+    }
+
+    fun resetCallState() {
+        isCallActive = false
+        callStartTime = 0L
     }
 
     /**
