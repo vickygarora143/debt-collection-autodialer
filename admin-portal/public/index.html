@@ -51,10 +51,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons CDN -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- SheetJS for Real Excel & CSV Parsing (Deferred - Does not block startup) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- Chart.js for Visuals (Deferred - Does not block startup) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
 
@@ -68,14 +64,14 @@
         <div class="splash-spinner"></div>
     </div>
     <script>
-        // Bulletproof fail-safe: Force dismiss splash overlay within 1.2s regardless of network/CDN
+        // Bulletproof fail-safe: Force dismiss splash overlay within 400ms
         setTimeout(function() {
             var s = document.getElementById('app-splash-loader');
             if (s && s.style.display !== 'none') {
                 s.style.opacity = '0';
-                setTimeout(function() { s.style.display = 'none'; }, 200);
+                setTimeout(function() { s.style.display = 'none'; }, 100);
             }
-        }, 1200);
+        }, 400);
     </script>
 
     <!-- ======================================================== -->

@@ -21,8 +21,30 @@ function dismissSplashLoader() {
     const splash = document.getElementById('app-splash-loader');
     if (splash) {
         splash.style.opacity = '0';
-        setTimeout(() => { splash.style.display = 'none'; }, 200);
+        setTimeout(() => { splash.style.display = 'none'; }, 100);
     }
+}
+
+async function ensureXlsxLoaded() {
+    if (typeof XLSX !== 'undefined') return;
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
+}
+
+async function ensureChartLoaded() {
+    if (typeof Chart !== 'undefined') return;
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -834,6 +856,7 @@ async function handleAgentSelfUpload() {
     let casesToUpload = [];
 
     if (fileInput.files.length > 0) {
+        await ensureXlsxLoaded();
         const file = fileInput.files[0];
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
@@ -969,9 +992,10 @@ async function loadDashboardStats() {
     }
 }
 
-function renderDispositionChart(dispositions) {
+async function renderDispositionChart(dispositions) {
     const ctx = document.getElementById('dispositionChart');
     if (!ctx) return;
+    await ensureChartLoaded();
 
     const hasData = dispositions && dispositions.length > 0;
     const labels = hasData ? dispositions.map(d => d.disposition) : ['No Calls Yet'];
@@ -1313,7 +1337,8 @@ function initDropZone() {
     });
 }
 
-function handleAdminFileSelect(file) {
+async function handleAdminFileSelect(file) {
+    await ensureXlsxLoaded();
     const reader = new FileReader();
     reader.onload = (e) => {
         const data = new Uint8Array(e.target.result);

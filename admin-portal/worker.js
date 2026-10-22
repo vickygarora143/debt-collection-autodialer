@@ -402,13 +402,13 @@ export default {
                 }), { headers: corsHeaders });
             }
 
-            // Version Check API for in-app auto updates (Set to 1 to suppress conflicting update prompts on previous APKs)
+            // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 1,
-                    versionName: "1.1.4",
-                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.4.apk",
-                    changelog: "GDSDebtPro Ultra-Fast Edition"
+                    versionCode: 15,
+                    versionName: "1.1.5",
+                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.5.apk",
+                    changelog: "GDSDebtPro Ultra-Fast Instant Startup Engine"
                 }), { headers: corsHeaders });
             }
 

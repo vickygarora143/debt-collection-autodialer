@@ -887,7 +887,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.allowContentAccess = true
-        settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.mediaPlaybackRequiresUserGesture = false
@@ -902,6 +902,11 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
             override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
                 super.onReceivedError(view, errorCode, description, failingUrl)
+                dismissNativeSplash()
+            }
+
+            override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                handler?.proceed()
                 dismissNativeSplash()
             }
 
@@ -934,20 +939,21 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
         webView.webChromeClient = WebChromeClient()
         webView.loadUrl("https://dialer.gdsdebtpro.workers.dev")
-        handler.postDelayed({ dismissNativeSplash() }, 1500)
+        handler.postDelayed({ dismissNativeSplash() }, 800)
     }
 
     private fun dismissNativeSplash() {
         if (::layoutNativeSplash.isInitialized && layoutNativeSplash.visibility == View.VISIBLE) {
             layoutNativeSplash.animate()
                 .alpha(0f)
-                .setDuration(250)
+                .setDuration(200)
                 .withEndAction { layoutNativeSplash.visibility = View.GONE }
                 .start()
         }
     }
 
     fun showWebView() {
+        dismissNativeSplash()
         webView.visibility = View.VISIBLE
         layoutLogin.visibility = View.GONE
         layoutDialer.visibility = View.GONE
@@ -955,6 +961,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     }
 
     fun showLoginScreen() {
+        dismissNativeSplash()
         webView.visibility = View.GONE
         layoutLogin.visibility = View.VISIBLE
         layoutDialer.visibility = View.GONE
@@ -962,6 +969,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     }
 
     fun showDialerScreen() {
+        dismissNativeSplash()
         webView.visibility = View.GONE
         layoutLogin.visibility = View.GONE
         layoutDialer.visibility = View.VISIBLE
