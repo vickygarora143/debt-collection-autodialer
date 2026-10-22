@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private var isCallInProgress = false
 
     // UI View References
-    private lateinit var layoutLogin: LinearLayout
+    private lateinit var layoutLogin: View
     private lateinit var layoutDialer: LinearLayout
     private lateinit var layoutLocked: LinearLayout
 

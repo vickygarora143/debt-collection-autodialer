@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:background="#F8FAFC">
 
     <!-- ======================================================== -->
@@ -38,129 +39,135 @@
     </LinearLayout>
 
     <!-- ======================================================== -->
-    <!-- 2. LOGIN SCREEN (MATCHES WEB APP LOGIN IN LIGHT THEME)   -->
+    <!-- 2. LOGIN SCREEN (RESPONSIVE SCROLLABLE FOR ALL SCREENS)  -->
     <!-- ======================================================== -->
-    <LinearLayout
+    <ScrollView
         android:id="@+id/layoutLogin"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#F8FAFC"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="24dp"
+        android:fillViewport="true"
         android:visibility="gone">
 
-        <!-- Login Card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#FFFFFF"
-            android:elevation="4dp"
+            android:gravity="center"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:padding="20dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="DebtFlow Pro"
-                android:textColor="#2563EB"
-                android:textSize="24sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="SIM Auto-Dialer • Telecaller Login"
-                android:textColor="#64748B"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <!-- Dynamic Version Validation Badge -->
-            <TextView
-                android:id="@+id/tvLoginVersion"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:background="#EFF6FF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:text="Version v1.0.8 (Build 8)"
-                android:textColor="#1D4ED8"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <!-- Agent ID Input -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="AGENT ID (LOGIN ID)"
-                android:textColor="#475569"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/etAgentCode"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="6dp"
-                android:background="#F1F5F9"
-                android:hint="e.g. AGT001"
-                android:inputType="textCapCharacters"
-                android:paddingHorizontal="14dp"
-                android:textColor="#0F172A"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <!-- Password Input -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="PASSWORD"
-                android:textColor="#475569"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/etAgentPassword"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="6dp"
-                android:background="#F1F5F9"
-                android:hint="Enter password"
-                android:inputType="textPassword"
-                android:paddingHorizontal="14dp"
-                android:textColor="#0F172A"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-
-            <!-- Security Notice -->
-            <TextView
+            <!-- Login Card -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:background="#EFF6FF"
-                android:padding="10dp"
-                android:text="⚡ Fast SIM Auto-Dialing • Multi-Device Access Enabled"
-                android:textColor="#1E40AF"
-                android:textSize="11sp" />
+                android:background="#FFFFFF"
+                android:elevation="4dp"
+                android:orientation="vertical"
+                android:padding="24dp">
 
-            <!-- Submit Button -->
-            <Button
-                android:id="@+id/btnLoginSubmit"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="20dp"
-                android:backgroundTint="#2563EB"
-                android:text="Enter Cockpit"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DebtFlow Pro"
+                    android:textColor="#2563EB"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="SIM Auto-Dialer • Telecaller Login"
+                    android:textColor="#64748B"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Dynamic Version Validation Badge -->
+                <TextView
+                    android:id="@+id/tvLoginVersion"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="#EFF6FF"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="Version v1.0.8 (Build 8)"
+                    android:textColor="#1D4ED8"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <!-- Agent ID Input -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="AGENT ID (LOGIN ID)"
+                    android:textColor="#475569"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/etAgentCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="6dp"
+                    android:background="#F1F5F9"
+                    android:hint="e.g. AGT001"
+                    android:inputType="textCapCharacters"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="#0F172A"
+                    android:textColorHint="#94A3B8"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <!-- Password Input -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="PASSWORD"
+                    android:textColor="#475569"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/etAgentPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="6dp"
+                    android:background="#F1F5F9"
+                    android:hint="Enter password"
+                    android:inputType="textPassword"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="#0F172A"
+                    android:textColorHint="#94A3B8"
+                    android:textSize="14sp" />
+
+                <!-- Security Notice -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="#EFF6FF"
+                    android:padding="10dp"
+                    android:text="⚡ Fast SIM Auto-Dialing • Multi-Device Access Enabled"
+                    android:textColor="#1E40AF"
+                    android:textSize="11sp" />
+
+                <!-- Submit Button -->
+                <Button
+                    android:id="@+id/btnLoginSubmit"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="20dp"
+                    android:backgroundTint="#2563EB"
+                    android:text="Enter Cockpit"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
+    </ScrollView>
 
     <!-- ======================================================== -->
     <!-- 3. TELECALLER HUD COCKPIT (EXACT MATCH WITH WEB APP)     -->
@@ -173,23 +180,24 @@
         android:orientation="vertical"
         android:visibility="visible">
 
-        <!-- 3A. TOP APP BAR (WHITE, BORDER SLATE) -->
+        <!-- 3A. TOP APP BAR (EXECUTIVE 2-ROW RESPONSIVE HEADER) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="#FFFFFF"
-            android:elevation="2dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="12dp">
+            android:elevation="3dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="10dp">
 
+            <!-- Row 1: Agent Identity Badge + Status + Quick Icons -->
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
+                <!-- Agent Identity Pill -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -202,7 +210,7 @@
                         android:layout_height="wrap_content"
                         android:text="AGT001"
                         android:textColor="#0F172A"
-                        android:textSize="15sp"
+                        android:textSize="16sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -210,89 +218,108 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
                         android:background="#ECFDF5"
-                        android:paddingHorizontal="6dp"
+                        android:paddingHorizontal="8dp"
                         android:paddingVertical="2dp"
                         android:text="● SIM Live"
                         android:textColor="#059669"
-                        android:textSize="10sp"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/tvHeaderSubtext"
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <!-- Action Icons Group -->
+                <Button
+                    android:id="@+id/btnRefreshQueue"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:backgroundTint="#F1F5F9"
+                    android:padding="0dp"
+                    android:text="🔄"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnExportFeedback"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:backgroundTint="#ECFDF5"
+                    android:padding="0dp"
+                    android:text="📥"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnAudioToggle"
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="Auto-Dialer Active"
-                    android:textColor="#64748B"
-                    android:textSize="11sp" />
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:backgroundTint="#F8FAFC"
+                    android:paddingHorizontal="10dp"
+                    android:text="Earphone"
+                    android:textColor="#059669"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- Action Buttons: Refresh, Export, Import, Audio -->
-            <Button
-                android:id="@+id/btnRefreshQueue"
-                android:layout_width="38dp"
-                android:layout_height="36dp"
-                android:backgroundTint="#F1F5F9"
-                android:padding="0dp"
-                android:text="🔄"
-                android:textSize="12sp" />
+            <!-- Row 2: Subtext / Live Version Info + Lead Management Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/btnExportFeedback"
-                android:layout_width="38dp"
-                android:layout_height="36dp"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="#ECFDF5"
-                android:padding="0dp"
-                android:text="📥"
-                android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/tvHeaderSubtext"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Auto-Dialer Active • v1.0.8"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
 
-            <Button
-                android:id="@+id/btnAgentImport"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="#EFF6FF"
-                android:text="+ Import"
-                android:textColor="#2563EB"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                <Button
+                    android:id="@+id/btnAgentImport"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:backgroundTint="#EFF6FF"
+                    android:paddingHorizontal="10dp"
+                    android:text="+ Import"
+                    android:textColor="#2563EB"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/btnClearQueue"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="#FFF1F2"
-                android:text="🗑️ Clear"
-                android:textColor="#E11D48"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btnAudioToggle"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="#F1F5F9"
-                android:text="Earphone"
-                android:textColor="#059669"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                <Button
+                    android:id="@+id/btnClearQueue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="6dp"
+                    android:backgroundTint="#FFF1F2"
+                    android:paddingHorizontal="10dp"
+                    android:text="🗑️ Clear"
+                    android:textColor="#E11D48"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:clipToPadding="false"
             android:fillViewport="true">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:paddingHorizontal="14dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="42dp">
 
                 <!-- 3B. 3-KPI STATS CARDS (DIALS, PTPS, REMAINING) -->
                 <LinearLayout
@@ -688,30 +715,31 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <!-- 3F. MAIN CALL CONTROLS -->
+                    <!-- 3F. MAIN CALL CONTROLS (RESPONSIVE PROPORTIONAL SCALING) -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="18dp"
+                        android:layout_marginTop="16dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
                         <Button
                             android:id="@+id/btnStartDial"
                             android:layout_width="0dp"
-                            android:layout_height="52dp"
-                            android:layout_weight="1"
+                            android:layout_height="48dp"
+                            android:layout_weight="3"
                             android:backgroundTint="#10B981"
                             android:text="Start Auto-Dialing"
                             android:textColor="#FFFFFF"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:textStyle="bold" />
 
                         <Button
                             android:id="@+id/btnPause"
-                            android:layout_width="wrap_content"
-                            android:layout_height="52dp"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
                             android:layout_marginStart="6dp"
+                            android:layout_weight="1.6"
                             android:backgroundTint="#F1F5F9"
                             android:text="Pause"
                             android:textColor="#334155"
@@ -720,9 +748,10 @@
 
                         <Button
                             android:id="@+id/btnNextLead"
-                            android:layout_width="wrap_content"
-                            android:layout_height="52dp"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
                             android:layout_marginStart="6dp"
+                            android:layout_weight="1.6"
                             android:backgroundTint="#EFF6FF"
                             android:text="Next ⏭"
                             android:textColor="#2563EB"
