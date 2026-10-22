@@ -382,8 +382,10 @@ export default {
                     return new Response(JSON.stringify({ error: 'Agent account is inactive or revoked.' }), { status: 403, headers: corsHeaders });
                 }
 
-                // Point 7: Automatic clean slate - Archive previous pending cases for this agent
-                await env.DB.prepare("UPDATE allocations SET status = 'ARCHIVED' WHERE assigned_agent_id = ? AND status = 'PENDING'").bind(agentId).run();
+                // Flexible Upload: Clean Slate (replace) vs Add to Queue (append)
+                if (body.mode === 'replace') {
+                    await env.DB.prepare("UPDATE allocations SET status = 'ARCHIVED' WHERE assigned_agent_id = ? AND status = 'PENDING'").bind(agentId).run();
+                }
 
                 const batchName = `SelfUpload_${agent.agent_code}_${new Date().toISOString().slice(0, 10)}`;
                 const statements = [];
@@ -421,17 +423,27 @@ export default {
                     success: true,
                     total_cases: statements.length,
                     batch_name: batchName,
-                    message: `Cleared previous queue and loaded ${statements.length} fresh cases into your dialer!`
+                    message: body.mode === 'replace' ? `Replaced queue with ${statements.length} fresh leads!` : `Added ${statements.length} leads to existing queue!`
                 }), { headers: corsHeaders });
             }
 
             // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 5,
-                    versionName: "1.0.5",
+                    versionCode: 6,
+                    versionName: "1.0.6",
                     apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.0.apk",
-                    changelog: "100% Play Protect Safe, Fresh Package com.debtflow.dialer, Compliant Auto-SMS"
+                    changelog: "24-Hour Ephemeral Security Auto-Purge, Smart RNR Auto-Capture & Recycler"
+                }), { headers: corsHeaders });
+            }
+
+            // 24-Hour Security Ephemeral Purge Endpoint
+            if (url.pathname === '/api/security/purge-24h') {
+                const purgeRes = await env.DB.prepare("DELETE FROM call_logs WHERE called_at < datetime('now', '-24 hours')").run();
+                return new Response(JSON.stringify({
+                    success: true,
+                    message: "All call records older than 24 hours permanently purged for security.",
+                    purged_rows: purgeRes.meta?.changes || 0
                 }), { headers: corsHeaders });
             }
 
@@ -450,22 +462,59 @@ export default {
                 return new Response(JSON.stringify({ records: results || [] }), { headers: corsHeaders });
             }
 
-            // 7. Agent Cases Queue
+            // 7. Agent Cases Queue (Supports Fresh Queue & RNR Retry Mode)
             if (url.pathname === '/api/allocations/my-cases' && method === 'GET') {
                 const agentId = parseInt(url.searchParams.get('agent_id') || '1');
-                const { results } = await env.DB.prepare(
-                    `SELECT id, customer_name, loan_account_no, primary_phone, overdue_amount, dpd, bucket, status 
-                     FROM allocations 
-                     WHERE assigned_agent_id = ? AND status NOT IN ('RESOLVED', 'ARCHIVED')
-                     ORDER BY id ASC LIMIT 300`
-                ).bind(agentId).all();
+                const mode = url.searchParams.get('mode') || 'fresh';
 
-                return new Response(JSON.stringify({ cases: results || [], total: (results || []).length }), { headers: corsHeaders });
+                // Mandatory 24-Hour Security Auto-Purge of historical call records
+                try {
+                    await env.DB.prepare("DELETE FROM call_logs WHERE called_at < datetime('now', '-24 hours')").run();
+                } catch (e) {
+                    console.error("24h auto-purge error:", e);
+                }
+
+                let query = '';
+                if (mode === 'rnr') {
+                    // Fetch unanswered leads for Attempt #2 / #3
+                    query = `SELECT id, customer_name, loan_account_no, primary_phone, overdue_amount, dpd, bucket, status, call_attempts, last_disposition 
+                             FROM allocations 
+                             WHERE assigned_agent_id = ? AND last_disposition = 'RNR' AND status != 'RESOLVED' AND call_attempts < 3
+                             ORDER BY id ASC LIMIT 300`;
+                } else {
+                    // Fresh uncalled leads (excluding resolved promises & settlements)
+                    query = `SELECT id, customer_name, loan_account_no, primary_phone, overdue_amount, dpd, bucket, status, call_attempts, last_disposition 
+                             FROM allocations 
+                             WHERE assigned_agent_id = ? AND status NOT IN ('RESOLVED', 'ARCHIVED')
+                             ORDER BY id ASC LIMIT 300`;
+                }
+
+                const { results } = await env.DB.prepare(query).bind(agentId).all();
+
+                // Count available RNR retries
+                const rnrCount = await env.DB.prepare(
+                    `SELECT COUNT(id) as count FROM allocations WHERE assigned_agent_id = ? AND last_disposition = 'RNR' AND status != 'RESOLVED' AND call_attempts < 3`
+                ).bind(agentId).first();
+
+                return new Response(JSON.stringify({ 
+                    cases: results || [], 
+                    total: (results || []).length, 
+                    rnr_available: rnrCount?.count || 0,
+                    mode: mode 
+                }), { headers: corsHeaders });
             }
 
-            // 8. Log Call Disposition
+            // 8. Log Call Disposition with Instant 24h Auto-Purge
             if (url.pathname === '/api/calls/log' && method === 'POST') {
                 const body = await request.json();
+
+                // Auto-purge any historical records older than 24 hours
+                try {
+                    await env.DB.prepare("DELETE FROM call_logs WHERE called_at < datetime('now', '-24 hours')").run();
+                } catch (e) {
+                    console.error("24h auto-purge error:", e);
+                }
+
                 await env.DB.prepare(
                     `INSERT INTO call_logs (allocation_id, agent_id, dialed_phone, call_duration_seconds, disposition, ptp_amount, ptp_date)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -479,11 +528,18 @@ export default {
                     body.ptp_date || null
                 ).run();
 
-                await env.DB.prepare(
-                    `UPDATE allocations SET call_attempts = call_attempts + 1, last_disposition = ?, status = 'CALLED' WHERE id = ?`
-                ).bind(body.disposition, body.allocation_id).run();
+                const isResolved = body.disposition === 'PTP' || body.disposition === 'PAID';
+                const nextStatus = isResolved ? 'RESOLVED' : (body.disposition === 'RNR' ? 'RNR' : 'CALLED');
 
-                return new Response(JSON.stringify({ success: true, message: 'Call logged in Cloudflare D1' }), { headers: corsHeaders });
+                await env.DB.prepare(
+                    `UPDATE allocations SET call_attempts = call_attempts + 1, last_disposition = ?, status = ? WHERE id = ?`
+                ).bind(body.disposition, nextStatus, body.allocation_id).run();
+
+                return new Response(JSON.stringify({ 
+                    success: true, 
+                    status: nextStatus,
+                    message: 'Call logged in Cloudflare D1 with 24h security retention' 
+                }), { headers: corsHeaders });
             }
 
             // 9. Reports API

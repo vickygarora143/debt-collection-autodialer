@@ -96,7 +96,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         initViews()
         telephonyService = TelephonyService(this, this)
 
-        // Runtime Telephony Permissions (Phone, Call Log, SMS)
+        // 24-Hour Ephemeral Security Auto-Purge of local logs
+        purgeExpiredLocalLogs()
+
+        // Runtime Telephony Permissions (Phone, Call Log)
         checkPermissions()
 
         // Check for in-app updates
@@ -161,11 +164,12 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             openSmsTemplateDialog()
         }
 
-        // Refresh queue from Cloudflare without logout
+        // Refresh queue or Retry RNR pool from Cloudflare
         btnRefreshQueue.setOnClickListener {
             val agentId = SecurityManager.getAgentId(this)
             if (agentId != -1) {
-                fetchAssignedQueue(agentId, showToast = true)
+                val mode = if (btnRefreshQueue.text.toString().contains("RNR", ignoreCase = true)) "rnr" else "fresh"
+                fetchAssignedQueue(agentId, showToast = true, mode = mode)
             }
         }
 
@@ -332,13 +336,14 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    private fun fetchAssignedQueue(agentId: Int, showToast: Boolean) {
-        tvCallStatus.text = "Syncing queue..."
+    private fun fetchAssignedQueue(agentId: Int, showToast: Boolean, mode: String = "fresh") {
+        tvCallStatus.text = if (mode == "rnr") "Loading RNR Retries..." else "Syncing queue..."
         thread {
-            val result = ApiClient.get("/api/allocations/my-cases?agent_id=$agentId")
+            val result = ApiClient.get("/api/allocations/my-cases?agent_id=$agentId&mode=$mode")
             handler.post {
                 result.onSuccess { json ->
                     val casesArray = json.getJSONArray("cases")
+                    val rnrAvailable = json.optInt("rnr_available", 0)
                     assignedCases.clear()
                     for (i in 0 until casesArray.length()) {
                         assignedCases.add(casesArray.getJSONObject(i))
@@ -346,8 +351,14 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                     saveCasesLocally(casesArray)
                     currentCaseIndex = 0
                     updateDebtorCard()
+                    btnRefreshQueue.text = "Refresh"
                     if (showToast) {
-                        Toast.makeText(this, "Queue updated: ${assignedCases.size} cases loaded!", Toast.LENGTH_SHORT).show()
+                        val msg = if (mode == "rnr") {
+                            "Loaded ${assignedCases.size} Unanswered RNR leads for Retry!"
+                        } else {
+                            "Queue updated: ${assignedCases.size} leads loaded! ($rnrAvailable RNR retries ready)"
+                        }
+                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                     }
                 }.onFailure { err ->
                     loadCasesFromLocalStorage()
@@ -436,24 +447,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         tvCallTimer.text = "00:00"
         isCallInProgress = true
 
-        // AUTOMATED SMS ON DIAL (Google Play Protect Compliant via Safe Native Intent)
-        if (cbAutoSms.isChecked) {
-            val debtorName = item.optString("customer_name", "")
-            val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
-            val agentPhone = SecurityManager.getAgentPhone(this)
-
-            runOnUiThread {
-                SmsSenderService.sendAutoSms(
-                    context = this,
-                    recipientPhone = phoneNumber,
-                    customerName = debtorName,
-                    overdueAmount = overdueAmt,
-                    agentPhone = agentPhone
-                )
-                tvCallStatus.text = "Dialing $phoneNumber • SMS Ready ✓"
-            }
-        }
-
+        // Direct Cellular SIM Call (Smart outcome-based SMS triggers on RNR or PTP post-call)
         telephonyService.placeCall(phoneNumber)
     }
 
@@ -487,21 +481,47 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     }
 
     override fun onCallDisconnected(durationSeconds: Int) {
-        currentCallDuration = durationSeconds
         isCallInProgress = false
-        handler.post {
+        handler.postDelayed({
             stopCallTimerTicker()
             bringAppToFront()
 
-            val autoTag = if (durationSeconds > 0) "CONNECTED" else "RNR"
-            tvCallStatus.text = if (durationSeconds > 0) {
-                "Call Ended (${durationSeconds}s) • Tap Outcome Tag"
-            } else {
-                "Ringing Dropped (RNR) • Next in 4s..."
-            }
+            val currentPhone = if (currentCaseIndex < assignedCases.size) assignedCases[currentCaseIndex].optString("primary_phone") else ""
+            val realDuration = telephonyService.getAccurateTalkDuration(currentPhone)
+            currentCallDuration = realDuration
 
-            startCountdownTimer(defaultTag = if (durationSeconds > 0) "RNR" else "RNR")
-        }
+            val isRnr = realDuration == 0
+
+            if (isRnr) {
+                // RNR: Ringing dropped / Unanswered
+                tvCallStatus.text = "RNR (Unanswered) • Auto-Logged ✓ Next in 0.8s"
+
+                // Auto-SMS on RNR: Dispatch Urgent Callback Notice
+                if (cbAutoSms.isChecked && currentPhone.isNotEmpty() && currentCaseIndex < assignedCases.size) {
+                    val item = assignedCases[currentCaseIndex]
+                    val debtorName = item.optString("customer_name", "")
+                    val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
+                    val agentPhone = SecurityManager.getAgentPhone(this)
+
+                    SmsSenderService.sendRnrCallbackSms(
+                        context = this,
+                        recipientPhone = currentPhone,
+                        customerName = debtorName,
+                        overdueAmount = overdueAmt,
+                        agentPhone = agentPhone
+                    )
+                }
+
+                // Instant 0.8s pacing straight to next lead without waiting
+                handler.postDelayed({
+                    recordDisposition("RNR")
+                }, 800)
+            } else {
+                // GENUINE CONNECTED TALK (customer spoke for X seconds)
+                tvCallStatus.text = "Connected (${realDuration}s) • Tap Customer Outcome"
+                // Do NOT force RNR timer! Give agent full control to tap PTP / Paid
+            }
+        }, 350)
     }
 
     private fun bringAppToFront() {
@@ -515,26 +535,29 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    private fun startCountdownTimer(defaultTag: String = "RNR") {
-        countdownTimer?.cancel()
-        countdownTimer = object : CountDownTimer(4000, 1000) {
-            override fun onTick(millisUntilFinished: Long) {
-                val sec = millisUntilFinished / 1000
-                tvCallStatus.text = "Tap Tag or Auto-Next in ${sec}s..."
-            }
-
-            override fun onFinish() {
-                recordDisposition(defaultTag)
-            }
-        }.start()
-    }
-
     private fun recordDisposition(disposition: String) {
         countdownTimer?.cancel()
 
         if (disposition == "PTP") {
             totalPtpsToday++
             tvStatPtps.text = totalPtpsToday.toString()
+
+            // Automated Payment Details SMS on PTP
+            if (cbAutoSms.isChecked && currentCaseIndex < assignedCases.size) {
+                val item = assignedCases[currentCaseIndex]
+                val debtorName = item.optString("customer_name", "")
+                val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
+                val agentPhone = SecurityManager.getAgentPhone(this)
+                val phone = item.optString("primary_phone", "")
+
+                SmsSenderService.sendAutoSms(
+                    context = this,
+                    recipientPhone = phone,
+                    customerName = debtorName,
+                    overdueAmount = overdueAmt,
+                    agentPhone = agentPhone
+                )
+            }
         }
 
         if (assignedCases.isNotEmpty() && currentCaseIndex < assignedCases.size) {
@@ -551,6 +574,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                         put("dialed_phone", phone)
                         put("call_duration_seconds", currentCallDuration)
                         put("disposition", disposition)
+                        put("timestamp", System.currentTimeMillis())
                     }
                     val res = ApiClient.post("/api/calls/log", payload)
                     if (res.isFailure) {
@@ -585,7 +609,9 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 tvCallStatus.text = "Ready to Dial"
             }
         } else {
-            Toast.makeText(this, "Queue Completed!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Queue Completed! Tap 'Retry RNR' to redial unanswered leads.", Toast.LENGTH_LONG).show()
+            tvCallStatus.text = "Queue Completed • Tap Refresh to Retry RNRs"
+            btnRefreshQueue.text = "Retry RNRs"
             stopAutoDialing()
         }
     }
@@ -815,10 +841,32 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun saveOfflineCallLog(log: JSONObject) {
         try {
+            log.put("timestamp", System.currentTimeMillis())
             val currentLogs = loadOfflineCallLogs()
             currentLogs.put(log)
             val fos = openFileOutput("offline_call_logs.json", android.content.Context.MODE_PRIVATE)
             fos.write(currentLogs.toString().toByteArray(Charsets.UTF_8))
+            fos.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // 24-Hour Ephemeral Security Policy: Automatically purges local records older than 24h
+    private fun purgeExpiredLocalLogs() {
+        try {
+            val cutoff = System.currentTimeMillis() - (24 * 60 * 60 * 1000L) // 24 hours ago
+            val logs = loadOfflineCallLogs()
+            val freshLogs = JSONArray()
+            for (i in 0 until logs.length()) {
+                val obj = logs.getJSONObject(i)
+                val ts = obj.optLong("timestamp", System.currentTimeMillis())
+                if (ts >= cutoff) {
+                    freshLogs.put(obj)
+                }
+            }
+            val fos = openFileOutput("offline_call_logs.json", android.content.Context.MODE_PRIVATE)
+            fos.write(freshLogs.toString().toByteArray(Charsets.UTF_8))
             fos.close()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -836,6 +884,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     }
 
     private fun syncOfflineLogsIfNeeded(agentId: Int) {
+        purgeExpiredLocalLogs()
         val logs = loadOfflineCallLogs()
         if (logs.length() == 0) return
 

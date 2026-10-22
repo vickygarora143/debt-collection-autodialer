@@ -87,4 +87,33 @@ object SmsSenderService {
             false
         }
     }
+
+    /**
+     * Automated Urgent Callback Notice for Unanswered (RNR) Calls
+     */
+    fun sendRnrCallbackSms(
+        context: Context,
+        recipientPhone: String,
+        customerName: String,
+        overdueAmount: String,
+        agentPhone: String
+    ): Boolean {
+        return try {
+            val cleanPhone = recipientPhone.replace(Regex("[^0-9+]"), "")
+            if (cleanPhone.length < 10) return false
+
+            val text = "URGENT NOTICE: We attempted to reach you regarding your overdue loan account. Immediate callback required. Contact Recovery Officer at ${if (agentPhone.isNotEmpty()) agentPhone else "our office"}."
+
+            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("smsto:$cleanPhone")
+                putExtra("sms_body", text)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(smsIntent)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

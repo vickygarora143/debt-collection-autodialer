@@ -105,7 +105,7 @@ class TelephonyService(private val context: Context, private val listener: CallS
     private fun handleStateChange(state: Int) {
         when (state) {
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                // Call started / answered
+                // Call dialed / active
                 isCallActive = true
                 callStartTime = System.currentTimeMillis()
                 listener.onCallConnected()
@@ -122,5 +122,43 @@ class TelephonyService(private val context: Context, private val listener: CallS
                 // Outbound or inbound ringing
             }
         }
+    }
+
+    /**
+     * Inspects the native Android CallLog provider to distinguish between:
+     * 1) Real Connected Talk (CallLog.Calls.DURATION > 0)
+     * 2) Unanswered / Ringing Dropped / Busy (CallLog.Calls.DURATION == 0)
+     */
+    fun getAccurateTalkDuration(dialedNumber: String): Int {
+        try {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.READ_CALL_LOG
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                val cursor = context.contentResolver.query(
+                    android.provider.CallLog.Calls.CONTENT_URI,
+                    arrayOf(
+                        android.provider.CallLog.Calls.NUMBER,
+                        android.provider.CallLog.Calls.DURATION,
+                        android.provider.CallLog.Calls.TYPE
+                    ),
+                    null,
+                    null,
+                    "${android.provider.CallLog.Calls.DATE} DESC"
+                )
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val durIndex = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
+                        if (durIndex != -1) {
+                            return it.getInt(durIndex)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return 0
     }
 }
