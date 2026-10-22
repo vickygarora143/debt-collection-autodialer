@@ -934,7 +934,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
 
         webView.webChromeClient = WebChromeClient()
-        webView.loadUrl("https://debtflow-dialer-pro.vickygarora143.workers.dev")
+        webView.loadUrl("https://dialer.gdsdebtpro.workers.dev")
     }
 
     fun showWebView() {

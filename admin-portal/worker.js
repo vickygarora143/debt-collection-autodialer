@@ -406,9 +406,9 @@ export default {
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
                     versionCode: 1,
-                    versionName: "1.1.3",
-                    apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-v1.1.3.apk",
-                    changelog: "DebtFlow Pro Stable Release"
+                    versionName: "1.1.4",
+                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.4.apk",
+                    changelog: "GDSDebtPro Ultra-Fast Edition"
                 }), { headers: corsHeaders });
             }
 

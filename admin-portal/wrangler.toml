@@ -1,4 +1,4 @@
-name = "debtflow-dialer-pro"
+name = "dialer"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 

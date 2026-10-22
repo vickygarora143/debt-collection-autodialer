@@ -9,7 +9,7 @@ import java.net.URL
 
 object ApiClient {
     // Live Cloudflare 100% Free Tier Serverless API
-    var BASE_URL = "https://debtflow-dialer-pro.vickygarora143.workers.dev"
+    var BASE_URL = "https://dialer.gdsdebtpro.workers.dev"
 
     fun post(endpoint: String, payload: JSONObject): Result<JSONObject> {
         return try {
