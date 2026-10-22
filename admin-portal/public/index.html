@@ -82,8 +82,8 @@
                     <span>Enter Telecaller Cockpit</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
                 <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.0.9.apk" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition">
-                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download Agent APK (v1.0.9 Clean)
+                    <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.1.0.apk" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition">
+                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download Agent APK (v1.1.0 Live-Sync)
                     </a>
                     <span class="text-[11px] text-slate-400 font-medium">SIM Dialer • 5.7 MB</span>
                 </div>
@@ -133,8 +133,8 @@
                     <div class="text-xs font-bold text-slate-900">Super Administrator</div>
                     <div class="text-[11px] text-emerald-600 font-semibold">Master Governance</div>
                 </div>
-                <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.0.9.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1.5" title="Download Android Dialer APK for 50 Agents (v1.0.9 Play Protect Clean)">
-                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download APK v1.0.9
+                <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.1.0.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1.5" title="Download Android Dialer APK for 50 Agents (v1.1.0 Live-Sync OTA Clean)">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download APK v1.1.0
                 </a>
                 <button onclick="openChangeAdminPasswordModal()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1.5" title="Change Admin Password">
                     <i data-lucide="key-round" class="w-3.5 h-3.5 text-blue-600"></i> Password
@@ -396,8 +396,8 @@
 
             <div class="flex items-center space-x-1.5">
                 <!-- App Download / Version Badge -->
-                <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.0.9.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1 shadow-sm" title="Download latest Android v1.0.9 APK (Play Protect Clean)">
-                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i> v1.0.9 Clean APK
+                <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.1.0.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1 shadow-sm" title="Download latest Android v1.1.0 APK (Live-Sync OTA Clean)">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i> v1.1.0 OTA APK
                 </a>
                 <!-- Refresh Queue Button (Point 3) -->
                 <button onclick="refreshAgentQueue()" id="btn-refresh-queue" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm" title="Refresh newly allocated cases">
@@ -716,5 +716,14 @@
 
     <!-- Client Script Logic -->
     <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then((reg) => {
+                    console.log('DebtFlow Live-Sync ServiceWorker Registered:', reg.scope);
+                }).catch((err) => console.log('SW registration skipped:', err));
+            });
+        }
+    </script>
 </body>
 </html>

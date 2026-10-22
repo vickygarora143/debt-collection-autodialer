@@ -7,6 +7,16 @@
     android:background="#F8FAFC">
 
     <!-- ======================================================== -->
+    <!-- 0. TWO-TIER REAL-TIME LIVE-SYNC CHROMIUM ENGINE          -->
+    <!-- Real-Time OTA UI Updates with Native SIM Telephony       -->
+    <!-- ======================================================== -->
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible" />
+
+    <!-- ======================================================== -->
     <!-- 1. EMERGENCY KILL-SWITCH SCREEN (PRISTINE LIGHT THEME)   -->
     <!-- ======================================================== -->
     <LinearLayout

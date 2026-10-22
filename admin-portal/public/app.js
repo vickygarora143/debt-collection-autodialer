@@ -355,8 +355,21 @@ function triggerCockpitDial() {
 
     document.getElementById('cockpit-call-status-text').innerText = `Calling SIM 1 (${cockpitAudioMode})${smsStatusNote}...`;
 
-    // If running on mobile browser, launch tel: scheme to dial via SIM card directly
-    if (item && item.primary_phone && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+    // 1. Android Telephony Bridge Integration (Zero-Lag Direct Hardware GSM SIM Calling)
+    if (window.AndroidBridge && item && item.primary_phone) {
+        window.AndroidBridge.makeSimCall(item.primary_phone);
+        if (autoSmsChecked) {
+            const tmpls = getAgentSmsTemplates();
+            const agentPhone = currentAgent ? (currentAgent.phone || currentAgent.agent_id || 'Officer') : 'Officer';
+            const isBulk = !item.customer_name || item.customer_name.startsWith('Lead #') || item.customer_name.startsWith('Personal Debtor Lead');
+            let smsText = isBulk ? tmpls.bulk : tmpls.details;
+            smsText = smsText
+                .replace(/{NAME}/g, item.customer_name || 'Customer')
+                .replace(/{AMOUNT}/g, Number(item.overdue_amount || 0).toLocaleString())
+                .replace(/{AGENT_PHONE}/g, agentPhone);
+            window.AndroidBridge.sendSimSms(item.primary_phone, item.customer_name || 'Customer', String(item.overdue_amount || 0), agentPhone);
+        }
+    } else if (item && item.primary_phone && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
         window.location.href = `tel:${item.primary_phone}`;
     }
 
@@ -369,6 +382,23 @@ function triggerCockpitDial() {
 
     lucide.createIcons();
 }
+
+// Global Native Telephony Listeners (Invoked directly by Android Bridge)
+window.onNativeCallConnected = function() {
+    document.getElementById('cockpit-call-status-text').innerText = `Call Connected (Speaking via SIM)...`;
+};
+
+window.onNativeCallDisconnected = function(durationSeconds) {
+    cockpitTimerSecs = durationSeconds || 0;
+    endCockpitCall();
+    if (durationSeconds === 0) {
+        // Unanswered / Ring No Response -> Auto-tag RNR and pace to next lead in 0.8s
+        document.getElementById('cockpit-call-status-text').innerText = `RNR (Unanswered). Pacing to next in 0.8s...`;
+        logCockpitCall('RNR');
+    } else {
+        document.getElementById('cockpit-call-status-text').innerText = `Connected (${durationSeconds}s) — Tap Outcome Tag`;
+    }
+};
 
 function endCockpitCall() {
     cockpitCalling = false;

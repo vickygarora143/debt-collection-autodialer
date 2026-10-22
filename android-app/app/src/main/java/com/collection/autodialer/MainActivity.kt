@@ -24,10 +24,17 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 
 class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListener {
 
-    private lateinit var telephonyService: TelephonyService
+    lateinit var telephonyService: TelephonyService
+    private lateinit var webView: WebView
+    var lastDialedPhone: String = ""
     private var assignedCases = ArrayList<JSONObject>()
     private var currentCaseIndex = 0
     private var isAutoDialingActive = false
@@ -110,20 +117,24 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         // Check for in-app updates
         checkForAppUpdates()
 
-        // Check if agent is already logged in
+        // Setup Real-Time Live-Sync Chromium OTA Engine
+        setupLiveSyncWebView()
+
+        // Check if agent is already logged in (for background sync)
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1) {
             val agentCode = SecurityManager.getAgentCode(this)
             tvQueueProgress.text = if (agentCode.isNotEmpty()) agentCode else "AGT001"
-            showDialerScreen()
             startHeartbeatCycle()
             fetchAssignedQueue(agentId, showToast = false)
-        } else {
-            showLoginScreen()
         }
+
+        // Show Live-Sync Chromium View by default for instant Over-The-Air zero-reinstall updates
+        showWebView()
     }
 
     private fun initViews() {
+        webView = findViewById(R.id.webView)
         layoutLogin = findViewById(R.id.layoutLogin)
         layoutDialer = findViewById(R.id.layoutDialer)
         layoutLocked = findViewById(R.id.layoutLocked)
@@ -522,6 +533,9 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         handler.post {
             tvCallStatus.text = "Call Connected • Talking..."
             startCallTimerTicker()
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("window.onNativeCallConnected && window.onNativeCallConnected();", null)
+            }
         }
     }
 
@@ -531,9 +545,14 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             stopCallTimerTicker()
             bringAppToFront()
 
-            val currentPhone = if (currentCaseIndex < assignedCases.size) assignedCases[currentCaseIndex].optString("primary_phone") else ""
+            val currentPhone = if (lastDialedPhone.isNotEmpty()) lastDialedPhone else (if (currentCaseIndex < assignedCases.size) assignedCases[currentCaseIndex].optString("primary_phone") else "")
             val realDuration = telephonyService.getAccurateTalkDuration(currentPhone)
             currentCallDuration = realDuration
+
+            // Dispatch accurate hardware talk duration to Live-Sync Chromium Engine
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("window.onNativeCallDisconnected && window.onNativeCallDisconnected($realDuration);", null)
+            }
 
             val isRnr = realDuration == 0
 
@@ -857,19 +876,76 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         handler.postDelayed(runnable, 60000)
     }
 
-    private fun showLoginScreen() {
+    private fun setupLiveSyncWebView() {
+        webView = findViewById(R.id.webView)
+        val settings = webView.settings
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.databaseEnabled = true
+        settings.allowFileAccess = true
+        settings.allowContentAccess = true
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
+        settings.mediaPlaybackRequiresUserGesture = false
+
+        webView.addJavascriptInterface(AndroidTelephonyBridge(this), "AndroidBridge")
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                return handleUrlOverride(url)
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                if (url == null) return false
+                return handleUrlOverride(url)
+            }
+
+            private fun handleUrlOverride(url: String): Boolean {
+                if (url.startsWith("tel:")) {
+                    val phone = url.removePrefix("tel:")
+                    lastDialedPhone = phone
+                    telephonyService.placeCall(phone)
+                    return true
+                }
+                if (url.endsWith(".apk")) {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    startActivity(intent)
+                    return true
+                }
+                return false
+            }
+        }
+
+        webView.webChromeClient = WebChromeClient()
+        webView.loadUrl("https://debtflow-dialer-pro.vickygarora143.workers.dev")
+    }
+
+    fun showWebView() {
+        webView.visibility = View.VISIBLE
+        layoutLogin.visibility = View.GONE
+        layoutDialer.visibility = View.GONE
+        layoutLocked.visibility = View.GONE
+    }
+
+    fun showLoginScreen() {
+        webView.visibility = View.GONE
         layoutLogin.visibility = View.VISIBLE
         layoutDialer.visibility = View.GONE
         layoutLocked.visibility = View.GONE
     }
 
-    private fun showDialerScreen() {
+    fun showDialerScreen() {
+        webView.visibility = View.GONE
         layoutLogin.visibility = View.GONE
         layoutDialer.visibility = View.VISIBLE
         layoutLocked.visibility = View.GONE
     }
 
     private fun showLockedScreen(reason: String) {
+        webView.visibility = View.GONE
         layoutLogin.visibility = View.GONE
         layoutDialer.visibility = View.GONE
         layoutLocked.visibility = View.VISIBLE
@@ -1003,6 +1079,16 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1 && assignedCases.isEmpty()) {
             fetchAssignedQueue(agentId, showToast = false)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.visibility == View.VISIBLE && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            @Suppress("DEPRECATION")
+            super.onBackPressed()
         }
     }
 }

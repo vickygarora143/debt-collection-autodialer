@@ -435,10 +435,10 @@ export default {
             // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 9,
-                    versionName: "1.0.9",
+                    versionCode: 10,
+                    versionName: "1.1.0",
                     apkUrl: "https://debtflow-dialer-pro.vickygarora143.workers.dev/DebtFlow-AutoDialer-Debug.apk",
-                    changelog: "Responsive Multi-Screen Layout, 2-Row Executive Header, Anti-Clipping Edge Insets"
+                    changelog: "Two-Tier Zero-Reinstall Live-Sync Engine: Instant Over-The-Air web updates & in-place update notifications"
                 }), { headers: corsHeaders });
             }
 
