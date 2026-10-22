@@ -159,13 +159,13 @@ async function initAgentCockpit() {
 
     loadAgentCasesAndStats();
 
-    // Auto-refresh queue in background every 20 seconds so PC uploads reflect instantly without logging out
+    // Battery-saving background sync (Only syncs when online and not actively dialing)
     if (window.agentQueueInterval) clearInterval(window.agentQueueInterval);
     window.agentQueueInterval = setInterval(() => {
-        if (currentAgent && !cockpitCalling) {
+        if (currentAgent && !cockpitCalling && !turboAutoDialing && navigator.onLine) {
             loadAgentCasesAndStats(true);
         }
-    }, 20000);
+    }, 60000);
 }
 
 async function refreshAgentQueue() {
@@ -814,6 +814,19 @@ async function handleAgentSelfUpload() {
     lucide.createIcons();
 
     try {
+        if (!navigator.onLine) {
+            // 100% OFFLINE MODE: Load directly into RAM & phone storage (Zero Internet required)
+            cockpitCases = casesToUpload;
+            localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
+            cockpitIndex = 0;
+            renderCockpitCase();
+            closeAgentUploadModal();
+            document.getElementById('agent-file-input').value = '';
+            document.getElementById('agent-paste-numbers').value = '';
+            alert(`OFFLINE READY: ${casesToUpload.length} leads loaded into phone storage! You can start dialing immediately without internet.`);
+            return;
+        }
+
         const res = await fetch('/api/allocations/upload-agent', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -830,7 +843,13 @@ async function handleAgentSelfUpload() {
             loadAgentCasesAndStats();
         }
     } catch (e) {
-        alert('Failed to upload cases: ' + e.message);
+        // Safe offline fallback if network drops midway
+        cockpitCases = casesToUpload;
+        localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
+        cockpitIndex = 0;
+        renderCockpitCase();
+        closeAgentUploadModal();
+        alert(`OFFLINE READY: ${casesToUpload.length} leads saved directly to phone storage. Ready to dial!`);
     } finally {
         btn.disabled = false;
         btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue`;

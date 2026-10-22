@@ -1,5 +1,5 @@
 // DebtFlow Pro - Pure Turbo Auto-Dialer Service Worker
-const CACHE_NAME = 'debtflow-turbo-v113';
+const CACHE_NAME = 'debtflow-turbo-v114';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -34,7 +34,7 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
         caches.match(e.request).then((cached) => {
             const networkFetch = fetch(e.request).then((res) => {
-                if (res && res.status === 200) {
+                if (res && (res.status === 200 || res.type === 'opaque')) {
                     const resClone = res.clone();
                     caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
                 }
