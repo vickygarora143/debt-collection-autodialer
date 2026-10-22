@@ -162,7 +162,10 @@ export default {
             // Offline Batch Sync Endpoint (Syncs calls made when internet was OFF)
             if (url.pathname === '/api/calls/batch-sync' && method === 'POST') {
                 const body = await request.json();
-                const agentId = parseInt(body.agent_id || 1);
+                const rawAgent = body.agent_id || body.agent_code || 1;
+                let agentId = parseInt(rawAgent);
+                const agentLookup = await env.DB.prepare('SELECT id FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
+                if (agentLookup) agentId = agentLookup.id;
                 const logs = body.logs || [];
 
                 if (logs.length > 0) {
@@ -173,10 +176,10 @@ export default {
                                 `INSERT INTO call_logs (allocation_id, agent_id, dialed_phone, call_duration_seconds, disposition, ptp_amount, ptp_date, called_at)
                                  VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`
                             ).bind(
-                                l.allocation_id,
+                                l.allocation_id ? parseInt(l.allocation_id) : null,
                                 agentId,
-                                l.dialed_phone,
-                                l.call_duration_seconds || 0,
+                                l.dialed_phone || l.phone || '',
+                                parseInt(l.call_duration_seconds) || 0,
                                 l.disposition || 'RNR',
                                 l.ptp_amount ? parseFloat(l.ptp_amount) : null,
                                 l.ptp_date || null,
@@ -367,20 +370,22 @@ export default {
 
             // 6. AGENT SELF-ALLOCATION UPLOAD
             // Allows telecallers to upload their OWN leads directly from mobile/WhatsApp/file
-            if (url.pathname === '/api/allocations/upload-agent' && method === 'POST') {
+            if ((url.pathname === '/api/allocations/upload-agent' || url.pathname === '/api/allocations/self-upload') && method === 'POST') {
                 const body = await request.json();
-                const agentId = parseInt(body.agent_id || '0');
                 const cases = body.cases || [];
+                const rawAgent = body.agent_id || body.agent_code || '0';
+                let agentId = parseInt(rawAgent);
+                const agent = await env.DB.prepare('SELECT id, agent_code, status FROM agents WHERE UPPER(agent_code) = UPPER(?) OR id = ?').bind(String(rawAgent).trim(), isNaN(agentId) ? 0 : agentId).first();
 
-                if (!agentId || agentId <= 0) {
-                    return new Response(JSON.stringify({ error: 'Valid agent_id required' }), { status: 400, headers: corsHeaders });
+                if (!agent) {
+                    return new Response(JSON.stringify({ error: 'Valid agent_id or agent_code required' }), { status: 400, headers: corsHeaders });
                 }
 
-                // Check if agent is active
-                const agent = await env.DB.prepare('SELECT agent_code, status FROM agents WHERE id = ?').bind(agentId).first();
-                if (!agent || agent.status === 'REVOKED') {
+                if (agent.status === 'REVOKED') {
                     return new Response(JSON.stringify({ error: 'Agent account is inactive or revoked.' }), { status: 403, headers: corsHeaders });
                 }
+
+                agentId = agent.id;
 
                 // Flexible Upload: Clean Slate (replace) vs Add to Queue (append)
                 if (body.mode === 'replace') {
@@ -487,7 +492,11 @@ export default {
                      ORDER BY cl.called_at DESC LIMIT 1000`
                 ).bind(agentId).all();
 
-                return new Response(JSON.stringify({ records: results || [] }), { headers: corsHeaders });
+                return new Response(JSON.stringify({ 
+                    success: true, 
+                    records: results || [], 
+                    calls: results || [] 
+                }), { headers: corsHeaders });
             }
 
             // 7. Agent Cases Queue (Supports Fresh Queue & RNR Retry Mode with 100% Agent Isolation)
@@ -551,25 +560,34 @@ export default {
                     console.error("24h auto-purge error:", e);
                 }
 
+                const disposition = body.disposition || body.call_status || 'RNR';
+                const dialedPhone = body.dialed_phone || body.phone || '';
+                const duration = parseInt(body.call_duration_seconds) || 0;
+                const ptpAmount = body.ptp_amount ? parseFloat(body.ptp_amount) : null;
+                const ptpDate = body.ptp_date || null;
+                const allocId = body.allocation_id ? parseInt(body.allocation_id) : null;
+
                 await env.DB.prepare(
                     `INSERT INTO call_logs (allocation_id, agent_id, dialed_phone, call_duration_seconds, disposition, ptp_amount, ptp_date)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
-                    body.allocation_id,
+                    allocId,
                     agentId,
-                    body.dialed_phone,
-                    body.call_duration_seconds || 0,
-                    body.disposition,
-                    body.ptp_amount ? parseFloat(body.ptp_amount) : null,
-                    body.ptp_date || null
+                    dialedPhone,
+                    duration,
+                    disposition,
+                    ptpAmount,
+                    ptpDate
                 ).run();
 
-                const isResolved = body.disposition === 'PTP' || body.disposition === 'PAID';
-                const nextStatus = isResolved ? 'RESOLVED' : (body.disposition === 'RNR' ? 'RNR' : 'CALLED');
+                const isResolved = disposition === 'PTP' || disposition === 'PAID';
+                const nextStatus = isResolved ? 'RESOLVED' : (disposition === 'RNR' ? 'RNR' : 'CALLED');
 
-                await env.DB.prepare(
-                    `UPDATE allocations SET call_attempts = call_attempts + 1, last_disposition = ?, status = ? WHERE id = ?`
-                ).bind(body.disposition, nextStatus, body.allocation_id).run();
+                if (allocId) {
+                    await env.DB.prepare(
+                        `UPDATE allocations SET call_attempts = call_attempts + 1, last_disposition = ?, status = ? WHERE id = ?`
+                    ).bind(disposition, nextStatus, allocId).run();
+                }
 
                 return new Response(JSON.stringify({ 
                     success: true, 
