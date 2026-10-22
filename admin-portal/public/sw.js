@@ -1,5 +1,5 @@
-// DebtFlow Pro - Two-Tier Live-Sync Service Worker
-const CACHE_NAME = 'debtflow-live-v111';
+// DebtFlow Pro - Pure Turbo Auto-Dialer Service Worker
+const CACHE_NAME = 'debtflow-turbo-v112';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

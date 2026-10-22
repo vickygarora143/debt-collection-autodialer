@@ -280,12 +280,34 @@ async function loadAgentCasesAndStats() {
     }
 }
 
+// Pure Turbo Auto-Dialer State (Ultra-Low Latency & High Call Velocity)
+let turboAutoDialing = false;
+let turboPaceMode = 'turbo'; // 'turbo' (1.2s), 'standard' (2.5s), 'manual'
+let turboPacingTimer = null;
+let cockpitDialsCount = parseInt(localStorage.getItem('debtflow_today_dials') || '0', 10);
+
+function setTurboPace(mode) {
+    turboPaceMode = mode;
+    ['turbo', 'standard', 'manual'].forEach(m => {
+        const btn = document.getElementById(`pace-btn-${m}`);
+        if (!btn) return;
+        if (m === mode) {
+            btn.className = "px-2.5 py-1.5 rounded-xl bg-white text-emerald-700 shadow-sm border border-slate-200 transition text-[11px] font-extrabold flex items-center gap-1";
+        } else {
+            btn.className = "px-2.5 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 transition text-[11px] font-bold";
+        }
+    });
+}
+
 function renderCockpitCase() {
     // Sync Auto-SMS preference checkbox
     const autoSmsBox = document.getElementById('cockpit-auto-sms');
     if (autoSmsBox) {
         autoSmsBox.checked = getAgentSmsTemplates().autoSms;
     }
+
+    const statDials = document.getElementById('agent-stat-dials');
+    if (statDials) statDials.innerText = cockpitDialsCount;
 
     if (cockpitCases.length === 0) {
         document.getElementById('cockpit-case-name').innerText = "Queue Empty! Import leads above";
@@ -296,6 +318,12 @@ function renderCockpitCase() {
         document.getElementById('cockpit-case-bucket').innerText = "DONE";
         document.getElementById('cockpit-call-status-text').innerText = "Ready";
         document.getElementById('cockpit-call-timer').innerText = "00:00";
+        const prog = document.getElementById('agent-stat-prog');
+        if (prog) prog.innerText = "0 / 0";
+        const qLeft = document.getElementById('agent-stat-queue');
+        if (qLeft) qLeft.innerText = "0";
+        const counter = document.getElementById('cockpit-case-counter');
+        if (counter) counter.innerText = "Lead #0 of 0";
         return;
     }
 
@@ -312,8 +340,75 @@ function renderCockpitCase() {
     document.getElementById('cockpit-case-dpd').innerText = `DPD: ${item.dpd || 0} Days`;
     document.getElementById('cockpit-case-bucket').innerText = item.bucket || 'BUCKET 1';
 
-    document.getElementById('cockpit-call-status-text').innerText = "Ready to Dial";
-    document.getElementById('cockpit-call-timer').innerText = "00:00";
+    // Update Progress Stats
+    const prog = document.getElementById('agent-stat-prog');
+    if (prog) prog.innerText = `${cockpitIndex + 1} / ${cockpitCases.length}`;
+    const qLeft = document.getElementById('agent-stat-queue');
+    if (qLeft) qLeft.innerText = Math.max(0, cockpitCases.length - cockpitIndex - 1);
+    const counter = document.getElementById('cockpit-case-counter');
+    if (counter) counter.innerText = `Lead #${cockpitIndex + 1} of ${cockpitCases.length}`;
+
+    if (!cockpitCalling) {
+        document.getElementById('cockpit-call-status-text').innerText = "Ready to Dial";
+        document.getElementById('cockpit-call-timer').innerText = "00:00";
+    }
+}
+
+function toggleTurboAutoDial() {
+    if (turboAutoDialing) {
+        stopTurboAutoDial();
+    } else {
+        startTurboAutoDial();
+    }
+}
+
+function startTurboAutoDial() {
+    if (cockpitCases.length === 0) {
+        alert('Please import cases first using "+ Import List" or tap "Refresh".');
+        return;
+    }
+    turboAutoDialing = true;
+    cockpitPaused = false;
+    updateTurboDialerUI(true);
+    triggerCockpitDial();
+}
+
+function stopTurboAutoDial() {
+    turboAutoDialing = false;
+    clearTimeout(turboPacingTimer);
+    if (cockpitCalling) {
+        endCockpitCall();
+    }
+    updateTurboDialerUI(false);
+    document.getElementById('cockpit-call-status-text').innerText = "Auto-Dialer Stopped • Ready";
+}
+
+function updateTurboDialerUI(active) {
+    const btn = document.getElementById('cockpit-dial-btn');
+    const text = document.getElementById('cockpit-dial-btn-text');
+    if (!btn) return;
+    if (active) {
+        btn.classList.replace('bg-emerald-600', 'bg-rose-600');
+        btn.classList.replace('hover:bg-emerald-700', 'hover:bg-rose-700');
+        btn.classList.replace('shadow-emerald-600/25', 'shadow-rose-600/25');
+        if (text) text.innerText = "STOP AUTO-DIALING";
+    } else {
+        btn.classList.replace('bg-rose-600', 'bg-emerald-600');
+        btn.classList.replace('hover:bg-rose-700', 'hover:bg-emerald-700');
+        btn.classList.replace('shadow-rose-600/25', 'shadow-emerald-600/25');
+        if (text) text.innerText = "START TURBO AUTO-DIAL";
+    }
+    lucide.createIcons();
+}
+
+function advanceCockpitCase(direction) {
+    clearTimeout(turboPacingTimer);
+    if (cockpitCases.length === 0) return;
+    cockpitIndex = (cockpitIndex + direction + cockpitCases.length) % cockpitCases.length;
+    renderCockpitCase();
+    if (turboAutoDialing && !cockpitCalling && !cockpitPaused) {
+        triggerCockpitDial();
+    }
 }
 
 function triggerCockpitDial() {
@@ -330,10 +425,6 @@ function triggerCockpitDial() {
     const item = cockpitCases[cockpitIndex];
     cockpitCalling = true;
     cockpitTimerSecs = 0;
-    const btn = document.getElementById('cockpit-dial-btn');
-    btn.classList.replace('bg-emerald-600', 'bg-rose-600');
-    btn.classList.replace('hover:bg-emerald-700', 'hover:bg-rose-700');
-    btn.innerHTML = `<i data-lucide="phone-off" class="w-5 h-5"></i> End Call`;
 
     // Process Auto-SMS on Call
     const autoSmsChecked = document.getElementById('cockpit-auto-sms') ? document.getElementById('cockpit-auto-sms').checked : true;
@@ -353,7 +444,7 @@ function triggerCockpitDial() {
         smsStatusNote = " • Auto-SMS Sent 💬";
     }
 
-    document.getElementById('cockpit-call-status-text').innerText = `Calling SIM 1 (${cockpitAudioMode})${smsStatusNote}...`;
+    document.getElementById('cockpit-call-status-text').innerText = `Dialing SIM 1 (${cockpitAudioMode})${smsStatusNote}...`;
 
     // 1. Android Telephony Bridge Integration (Zero-Lag Direct Hardware GSM SIM Calling)
     if (window.AndroidBridge && item && item.primary_phone) {
@@ -373,6 +464,7 @@ function triggerCockpitDial() {
         window.location.href = `tel:${item.primary_phone}`;
     }
 
+    clearInterval(cockpitInterval);
     cockpitInterval = setInterval(() => {
         cockpitTimerSecs++;
         const mins = String(Math.floor(cockpitTimerSecs / 60)).padStart(2, '0');
@@ -385,93 +477,74 @@ function triggerCockpitDial() {
 
 // Global Native Telephony Listeners (Invoked directly by Android Bridge)
 window.onNativeCallConnected = function() {
-    document.getElementById('cockpit-call-status-text').innerText = `Call Connected (Speaking via SIM)...`;
+    document.getElementById('cockpit-call-status-text').innerText = `Call Connected • Speaking via SIM...`;
 };
 
 window.onNativeCallDisconnected = function(durationSeconds) {
     cockpitTimerSecs = durationSeconds || 0;
     endCockpitCall();
-    if (durationSeconds === 0) {
-        // Unanswered / Ring No Response -> Auto-tag RNR and pace to next lead in 0.8s
-        document.getElementById('cockpit-call-status-text').innerText = `RNR (Unanswered). Pacing to next in 0.8s...`;
-        logCockpitCall('RNR');
-    } else {
-        document.getElementById('cockpit-call-status-text').innerText = `Connected (${durationSeconds}s) — Tap Outcome Tag`;
+
+    cockpitDialsCount++;
+    localStorage.setItem('debtflow_today_dials', String(cockpitDialsCount));
+    const statDials = document.getElementById('agent-stat-dials');
+    if (statDials) statDials.innerText = cockpitDialsCount;
+
+    if (!turboAutoDialing) {
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Ready`;
+        return;
     }
+
+    if (cockpitPaused) {
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Paused (Take Notes)`;
+        return;
+    }
+
+    if (turboPaceMode === 'manual') {
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Tap Next Lead to Dial`;
+        return;
+    }
+
+    const delayMs = turboPaceMode === 'turbo' ? 1200 : 2500;
+    const delaySec = (delayMs / 1000).toFixed(1);
+    document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Next in ${delaySec}s...`;
+
+    clearTimeout(turboPacingTimer);
+    turboPacingTimer = setTimeout(() => {
+        if (turboAutoDialing && !cockpitPaused && cockpitCases.length > 0) {
+            cockpitIndex = (cockpitIndex + 1) % cockpitCases.length;
+            renderCockpitCase();
+            triggerCockpitDial();
+        }
+    }, delayMs);
 };
 
 function endCockpitCall() {
     cockpitCalling = false;
     clearInterval(cockpitInterval);
-    const btn = document.getElementById('cockpit-dial-btn');
-    btn.classList.replace('bg-rose-600', 'bg-emerald-600');
-    btn.classList.replace('hover:bg-rose-700', 'hover:bg-emerald-700');
-    btn.innerHTML = `<i data-lucide="phone" class="w-5 h-5"></i> Start Auto-Dialing`;
-    document.getElementById('cockpit-call-status-text').innerText = 'Call Ended — Tap 1-Touch Tag';
+    document.getElementById('cockpit-call-status-text').innerText = 'Call Ended • Ready';
     lucide.createIcons();
 }
 
-async function logCockpitCall(disposition) {
-    const duration = cockpitTimerSecs;
+function logCockpitCall(disposition) {
+    // Kept as lightweight fallback for compatibility
     if (cockpitCalling) endCockpitCall();
-
-    const item = cockpitCases[cockpitIndex];
-    if (item && item.id > 0 && currentAgent) {
-        const logPayload = {
-            allocation_id: item.id,
-            agent_id: currentAgent.id,
-            dialed_phone: item.primary_phone,
-            call_duration_seconds: duration,
-            disposition: disposition,
-            ptp_amount: disposition === 'PTP' ? item.overdue_amount : null,
-            ptp_date: disposition === 'PTP' ? new Date(Date.now() + 86400000).toISOString().slice(0, 10) : null,
-            called_at: new Date().toISOString()
-        };
-
-        if (navigator.onLine) {
-            try {
-                await fetch('/api/calls/log', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(logPayload)
-                });
-            } catch (e) {
-                saveOfflineLog(logPayload);
-            }
-        } else {
-            saveOfflineLog(logPayload);
-        }
-    }
-
-    document.getElementById('cockpit-call-status-text').innerText = `Tagged: ${disposition}. Next in 3s...`;
-
-    setTimeout(() => {
-        if (!cockpitPaused && cockpitCases.length > 0) {
-            cockpitIndex = (cockpitIndex + 1) % cockpitCases.length;
-            renderCockpitCase();
-            triggerCockpitDial();
-        }
-    }, 2500);
-}
-
-function saveOfflineLog(log) {
-    const logs = JSON.parse(localStorage.getItem('debtflow_offline_logs') || '[]');
-    logs.push(log);
-    localStorage.setItem('debtflow_offline_logs', JSON.stringify(logs));
-    console.log('Saved call outcome offline. Total queued for sync:', logs.length);
 }
 
 function toggleCockpitPause() {
     cockpitPaused = !cockpitPaused;
     const btn = document.getElementById('cockpit-pause-btn');
     if (cockpitPaused) {
-        btn.classList.add('bg-amber-100', 'text-amber-800');
-        btn.innerHTML = `<i data-lucide="play" class="w-5 h-5"></i>`;
-        document.getElementById('cockpit-call-status-text').innerText = 'Auto-Dial Paused';
+        clearTimeout(turboPacingTimer);
+        btn.classList.add('bg-amber-100', 'text-amber-800', 'border-amber-300');
+        btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> <span>Resume</span>`;
+        document.getElementById('cockpit-call-status-text').innerText = 'Auto-Dialer Paused (Notes Time)';
     } else {
-        btn.classList.remove('bg-amber-100', 'text-amber-800');
-        btn.innerHTML = `<i data-lucide="pause" class="w-5 h-5"></i>`;
-        document.getElementById('cockpit-call-status-text').innerText = 'Resumed';
+        btn.classList.remove('bg-amber-100', 'text-amber-800', 'border-amber-300');
+        btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4"></i> <span>Pause</span>`;
+        document.getElementById('cockpit-call-status-text').innerText = 'Resumed • Dialing next...';
+        if (turboAutoDialing && !cockpitCalling) {
+            advanceCockpitCase(1);
+        }
     }
     lucide.createIcons();
 }

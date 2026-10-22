@@ -395,17 +395,9 @@
             </div>
 
             <div class="flex items-center space-x-1.5">
-                <!-- App Download / Version Badge -->
-                <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.1.0.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1 shadow-sm" title="Download latest Android v1.1.0 APK (Live-Sync OTA Clean)">
-                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i> v1.1.0 OTA APK
-                </a>
-                <!-- Refresh Queue Button (Point 3) -->
+                <!-- Refresh Queue Button -->
                 <button onclick="refreshAgentQueue()" id="btn-refresh-queue" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1 shadow-sm" title="Refresh newly allocated cases">
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
-                </button>
-                <!-- Export Feedback Button (Point 2) -->
-                <button onclick="exportAgentFeedback()" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1 shadow-sm" title="Download my shift call logs">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Feedback
                 </button>
                 <!-- Self-Upload Button -->
                 <button onclick="openAgentUploadModal()" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition flex items-center gap-1 shadow-sm" title="Import new leads into queue">
@@ -426,20 +418,20 @@
             </div>
         </header>
 
-        <!-- Agent Calling Workspace -->
+        <!-- Agent Calling Workspace: Pure Turbo Auto-Dialer (Zero Latency) -->
         <main class="flex-1 p-4 max-w-xl mx-auto w-full space-y-4">
             <!-- Agent Shift Stats Cards -->
             <div class="grid grid-cols-3 gap-2">
                 <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
-                    <div class="text-[10px] text-slate-400 uppercase font-bold">My Dials</div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Calls Dialed</div>
                     <div class="text-lg font-black text-slate-900 mt-0.5" id="agent-stat-dials">0</div>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
-                    <div class="text-[10px] text-slate-400 uppercase font-bold">My PTPs</div>
-                    <div class="text-lg font-black text-emerald-600 mt-0.5" id="agent-stat-ptps">0</div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Queue Progress</div>
+                    <div class="text-lg font-black text-indigo-600 mt-0.5" id="agent-stat-prog">0 / 0</div>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
-                    <div class="text-[10px] text-slate-400 uppercase font-bold">Queue Remaining</div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Remaining</div>
                     <div class="text-lg font-black text-blue-600 mt-0.5" id="agent-stat-queue">0</div>
                 </div>
             </div>
@@ -447,13 +439,16 @@
             <!-- Debtor Primary Calling HUD Card -->
             <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <span class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-amber-50 text-amber-800 border border-amber-200" id="cockpit-case-bucket">BUCKET 1</span>
-                    <span class="text-xs text-rose-600 font-extrabold" id="cockpit-case-dpd">DPD: 0 Days</span>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-amber-50 text-amber-800 border border-amber-200" id="cockpit-case-bucket">BUCKET 1</span>
+                        <span class="text-xs text-rose-600 font-extrabold" id="cockpit-case-dpd">DPD: 0 Days</span>
+                    </div>
+                    <span class="text-xs font-bold text-slate-400" id="cockpit-case-counter">Lead #0 of 0</span>
                 </div>
 
                 <div>
-                    <h2 class="text-xl font-extrabold text-slate-900 tracking-tight" id="cockpit-case-name">Waiting for cases...</h2>
-                    <div class="text-xs text-slate-400 mt-0.5 font-medium" id="cockpit-case-loan">Loan Acc: -</div>
+                    <h2 class="text-2xl font-black text-slate-900 tracking-tight" id="cockpit-case-name">Waiting for cases...</h2>
+                    <div class="text-xs text-slate-500 mt-0.5 font-semibold" id="cockpit-case-loan">Loan Acc: -</div>
                 </div>
 
                 <!-- Overdue & Phone Block -->
@@ -464,17 +459,17 @@
                     </div>
                     <div class="text-right">
                         <div class="text-[10px] text-slate-400 uppercase font-bold">Mobile SIM</div>
-                        <div class="text-sm font-mono font-bold text-blue-700" id="cockpit-case-phone">-</div>
+                        <div class="text-base font-mono font-black text-blue-700 tracking-wide" id="cockpit-case-phone">-</div>
                     </div>
                 </div>
 
                 <!-- Call Status / Timer Banner -->
-                <div id="cockpit-call-status-box" class="py-2.5 px-4 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs font-bold text-blue-800">
+                <div id="cockpit-call-status-box" class="py-3 px-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs font-bold text-blue-800">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-blue-600 pulse-dot"></span>
                         <span id="cockpit-call-status-text">Ready to Dial</span>
                     </div>
-                    <div class="font-mono text-slate-700" id="cockpit-call-timer">00:00</div>
+                    <div class="font-mono text-sm font-black text-slate-800" id="cockpit-call-timer">00:00</div>
                 </div>
 
                 <!-- Auto-SMS on Dial & Template Controls -->
@@ -490,27 +485,41 @@
                     </button>
                 </div>
 
-                <!-- 1-Tap Recovery Tagging Grid -->
-                <div class="space-y-1.5 pt-1">
-                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">1-Touch Outcome Tag</div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="logCockpitCall('PTP')" class="py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 transition">PTP</button>
-                        <button onclick="logCockpitCall('BROKEN_PTP')" class="py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 transition">Broken PTP</button>
-                        <button onclick="logCockpitCall('PAID_ONLINE')" class="py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-800 transition">Paid</button>
-                        <button onclick="logCockpitCall('RNR')" class="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">RNR</button>
-                        <button onclick="logCockpitCall('BUSY')" class="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">Busy / Off</button>
-                        <button onclick="logCockpitCall('WRONG_NUMBER')" class="py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 transition">Wrong #</button>
+                <!-- Pacing Mode Selector -->
+                <div class="bg-slate-100 p-1.5 rounded-2xl border border-slate-200 flex items-center justify-between">
+                    <span class="text-[10px] uppercase font-black text-slate-400 pl-2">Pacing Mode:</span>
+                    <div class="flex items-center gap-1">
+                        <button type="button" onclick="setTurboPace('turbo')" id="pace-btn-turbo" class="px-2.5 py-1.5 rounded-xl bg-white text-emerald-700 shadow-sm border border-slate-200 transition text-[11px] font-extrabold flex items-center gap-1">
+                            ⚡ Turbo (1.2s)
+                        </button>
+                        <button type="button" onclick="setTurboPace('standard')" id="pace-btn-standard" class="px-2.5 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 transition text-[11px] font-bold">
+                            ⏱ Standard (2.5s)
+                        </button>
+                        <button type="button" onclick="setTurboPace('manual')" id="pace-btn-manual" class="px-2.5 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 transition text-[11px] font-bold">
+                            ✋ Manual
+                        </button>
                     </div>
                 </div>
 
-                <!-- Main Call / Pause Controls -->
-                <div class="flex items-center gap-2 pt-2">
-                    <button onclick="triggerCockpitDial()" id="cockpit-dial-btn" class="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2">
-                        <i data-lucide="phone" class="w-5 h-5"></i> Start Auto-Dialing
+                <!-- Main Primary Turbo-Dialer Button -->
+                <div class="space-y-2 pt-1">
+                    <button onclick="toggleTurboAutoDial()" id="cockpit-dial-btn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-sm rounded-2xl shadow-lg shadow-emerald-600/25 transition flex items-center justify-center gap-2">
+                        <i data-lucide="phone-call" class="w-5 h-5"></i>
+                        <span id="cockpit-dial-btn-text">START TURBO AUTO-DIAL</span>
                     </button>
-                    <button onclick="toggleCockpitPause()" id="cockpit-pause-btn" class="px-4 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 shadow-sm transition">
-                        <i data-lucide="pause" class="w-5 h-5"></i>
-                    </button>
+
+                    <!-- Secondary Navigation & Manual Controls -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="advanceCockpitCase(-1)" class="py-3 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 shadow-sm transition flex items-center justify-center gap-1.5">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i> Prev Lead
+                        </button>
+                        <button onclick="toggleCockpitPause()" id="cockpit-pause-btn" class="py-3 bg-white hover:bg-amber-50 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 shadow-sm transition flex items-center justify-center gap-1.5">
+                            <i data-lucide="pause" class="w-4 h-4"></i> <span id="cockpit-pause-btn-text">Pause</span>
+                        </button>
+                        <button onclick="advanceCockpitCase(1)" class="py-3 bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-2xl border border-blue-200 shadow-sm transition flex items-center justify-center gap-1.5">
+                            Next Lead <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
