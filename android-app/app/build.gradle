@@ -30,7 +30,7 @@ android {
 
     buildTypes {
         debug {
-            // Standard Android Debug certificate for 100% Play Protect & OEM Scanner Clean pass
+            signingConfig signingConfigs.release
         }
         release {
             signingConfig signingConfigs.release
