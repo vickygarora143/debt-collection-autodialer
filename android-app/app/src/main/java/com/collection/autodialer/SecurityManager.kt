@@ -91,4 +91,9 @@ object SecurityManager {
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_AGENT_PHONE, "") ?: ""
     }
+
+    fun clearAgentSession(context: Context) {
+        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_AGENT_ID).remove(KEY_AGENT_CODE).remove(KEY_AGENT_PHONE).apply()
+    }
 }

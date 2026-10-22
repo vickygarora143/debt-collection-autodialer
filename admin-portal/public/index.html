@@ -125,10 +125,10 @@
                     <span>Enter Telecaller Cockpit</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
                 <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.1.1.apk" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition">
-                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download Agent APK (v1.1.1 Turbo)
+                    <a href="/DebtFlow-AutoDialer-v1.1.7.apk" download="DebtFlow-AutoDialer-v1.1.7.apk" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition">
+                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download Agent APK (v1.1.7 Latest)
                     </a>
-                    <span class="text-[11px] text-slate-400 font-medium">SIM Dialer • 5.7 MB</span>
+                    <span class="text-[11px] text-slate-400 font-medium">SIM Dialer • 4.8 MB</span>
                 </div>
             </form>
         </div>
@@ -176,8 +176,8 @@
                     <div class="text-xs font-bold text-slate-900">Super Administrator</div>
                     <div class="text-[11px] text-emerald-600 font-semibold">Master Governance</div>
                 </div>
-                <a href="/DebtFlow-AutoDialer-Debug.apk" download="DebtFlow-AutoDialer-v1.1.1.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1.5" title="Download Android Dialer APK for 50 Agents (v1.1.1 Turbo Telephony Clean)">
-                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download APK v1.1.1
+                <a href="/DebtFlow-AutoDialer-v1.1.7.apk" download="DebtFlow-AutoDialer-v1.1.7.apk" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1.5" title="Download Android Dialer APK for 50 Agents (v1.1.7 Latest Release)">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Download APK v1.1.7
                 </a>
                 <button onclick="openChangeAdminPasswordModal()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1.5" title="Change Admin Password">
                     <i data-lucide="key-round" class="w-3.5 h-3.5 text-blue-600"></i> Password
@@ -306,12 +306,14 @@
                         <table class="w-full text-left text-xs">
                             <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
                                 <tr>
-                                    <th class="py-3 px-4">Agent ID (Login ID)</th>
-                                    <th class="py-3 px-4">Full Name & Phone</th>
-                                    <th class="py-3 px-4">Assigned Cases</th>
-                                    <th class="py-3 px-4">Dials Today</th>
+                                    <th class="py-3 px-4">Agent ID</th>
+                                    <th class="py-3 px-4">Telecaller Name</th>
+                                    <th class="py-3 px-4">Live Presence</th>
+                                    <th class="py-3 px-4">Shift Login / Duration</th>
+                                    <th class="py-3 px-4">Talk Time</th>
+                                    <th class="py-3 px-4">Dials</th>
                                     <th class="py-3 px-4">Status</th>
-                                    <th class="py-3 px-4 text-right">Super Admin Control</th>
+                                    <th class="py-3 px-4 text-right">Admin Control</th>
                                 </tr>
                             </thead>
                             <tbody id="agents-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
@@ -391,6 +393,40 @@
                 </div>
 
                 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                        <div class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-600"></i> Daily Agent Productivity & Login Duration Summary (Permanent Audit)
+                        </div>
+                        <span class="text-[11px] text-slate-500 font-medium">Auto-aggregated daily • Zero Customer PII</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">
+                                <tr>
+                                    <th class="py-3 px-4">Agent ID</th>
+                                    <th class="py-3 px-4">Telecaller</th>
+                                    <th class="py-3 px-4">First Login</th>
+                                    <th class="py-3 px-4">Login Duration</th>
+                                    <th class="py-3 px-4">Total Dials</th>
+                                    <th class="py-3 px-4">Connected</th>
+                                    <th class="py-3 px-4">Connect Rate</th>
+                                    <th class="py-3 px-4">Total Talk Time</th>
+                                    <th class="py-3 px-4">PTPs</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productivity-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
+                                <tr><td colspan="9" class="py-6 text-center text-slate-400">Loading productivity summary...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                        <div class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="phone-call" class="w-4 h-4 text-emerald-600"></i> Active Shift Live Call Records (Purged Daily at 8:00 PM IST)
+                        </div>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="text-slate-500 border-b border-slate-200 bg-slate-50/80">

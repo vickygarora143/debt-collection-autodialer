@@ -46,6 +46,15 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private var totalDialsToday = 0
     private var totalPtpsToday = 0
 
+    // 30-Minute Inactivity Auto-Logout Tracking
+    private var lastUserInteractionTime = System.currentTimeMillis()
+    private val INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000L
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastUserInteractionTime = System.currentTimeMillis()
+    }
+
     private val handler = Handler(Looper.getMainLooper())
     private var countdownTimer: CountDownTimer? = null
     private var callChronometerHandler: Handler? = null
@@ -215,6 +224,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                                 res.onSuccess {
                                     assignedCases.clear()
                                     currentCaseIndex = 0
+                                    deleteFile("cached_cases.json")
                                     deleteFile("offline_cases.json")
                                     updateDebtorCard()
                                     Toast.makeText(this@MainActivity, "Queue cleared! Ready for fresh import.", Toast.LENGTH_SHORT).show()
@@ -400,6 +410,19 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             val result = ApiClient.get("/api/allocations/my-cases?agent_id=$agentId&mode=$mode")
             handler.post {
                 result.onSuccess { json ->
+                    val isShiftActive = json.optBoolean("shift_active", true)
+                    if (!isShiftActive) {
+                        assignedCases.clear()
+                        deleteFile("cached_cases.json")
+                        currentCaseIndex = 0
+                        updateDebtorCard()
+                        tvCallStatus.text = "Shift Closed (8:00 AM – 8:00 PM IST) • Auto-Purged"
+                        if (showToast) {
+                            Toast.makeText(this@MainActivity, "Daily shift closed (8 PM). All records auto-purged.", Toast.LENGTH_LONG).show()
+                        }
+                        return@onSuccess
+                    }
+
                     val casesArray = json.getJSONArray("cases")
                     val rnrAvailable = json.optInt("rnr_available", 0)
                     assignedCases.clear()
@@ -826,13 +849,27 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 }
                 reader.close()
 
-                // 100% PRIVATE LOCAL STORAGE: Save directly to phone storage without server roundtrip
+                // 100% PRIVATE LOCAL STORAGE: Save directly to phone storage
                 assignedCases.clear()
                 for (i in 0 until casesArray.length()) {
                     assignedCases.add(casesArray.getJSONObject(i))
                 }
                 saveCasesLocally(casesArray)
                 currentCaseIndex = 0
+
+                // Synchronize active shift queue with Web Cockpit
+                thread {
+                    try {
+                        val syncPayload = JSONObject().apply {
+                            put("agent_id", agentId)
+                            put("cases", casesArray)
+                            put("clear_previous", true)
+                        }
+                        ApiClient.post("/api/allocations/upload-agent", syncPayload)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
 
                 handler.post {
                     updateDebtorCard()
@@ -866,6 +903,17 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             override fun run() {
                 val agentId = SecurityManager.getAgentId(this@MainActivity)
                 if (agentId != -1) {
+                    // Check 30-minute inactivity timeout
+                    if (!isCallInProgress && !isAutoDialingActive && (System.currentTimeMillis() - lastUserInteractionTime > INACTIVITY_TIMEOUT_MS)) {
+                        handler.post {
+                            Toast.makeText(this@MainActivity, "Logged out due to 30 minutes of inactivity.", Toast.LENGTH_LONG).show()
+                            SecurityManager.clearAgentSession(this@MainActivity)
+                            layoutLogin.visibility = View.VISIBLE
+                            layoutDialer.visibility = View.GONE
+                        }
+                        return
+                    }
+
                     val hardwareUuid = SecurityManager.getHardwareFingerprint(this@MainActivity)
                     thread {
                         val payload = JSONObject().apply {

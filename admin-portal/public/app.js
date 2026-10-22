@@ -288,27 +288,50 @@ async function loadAgentCasesAndStats() {
     if (!currentAgent) return;
 
     try {
-        const localCached = JSON.parse(localStorage.getItem('debtflow_cached_cases_' + currentAgent.id) || '[]');
-        if (localCached.length > 0) {
-            cockpitCases = localCached;
-        } else {
-            const res = await fetch(`/api/allocations/my-cases?agent_id=${currentAgent.id}`);
-            const data = await res.json();
-            cockpitCases = data.cases || [];
-            if (cockpitCases.length > 0) {
-                localStorage.setItem('debtflow_cached_cases_' + currentAgent.id, JSON.stringify(cockpitCases));
-            }
+        // 1. Fetch live KPI stats (Dials, Talk Time, Connected, Queue, Shift Status)
+        const kpiRes = await fetch(`/api/agent/today-kpi?agent_id=${currentAgent.id}`);
+        const kpiData = await kpiRes.json();
+
+        // Check if shift is closed (post 8 PM IST or pre 8 AM IST)
+        if (!kpiData.shift_active) {
+            cockpitCases = [];
+            cockpitIndex = 0;
+            localStorage.removeItem('debtflow_cached_cases_' + currentAgent.id);
+            localStorage.setItem('debtflow_today_talk_secs', '0');
+            localStorage.setItem('debtflow_today_dials', '0');
+            localStorage.setItem('debtflow_today_connected', '0');
+
+            document.getElementById('agent-stat-queue').innerText = '0';
+            document.getElementById('agent-stat-dials').innerText = '0';
+            document.getElementById('agent-stat-connected').innerText = '0';
+            document.getElementById('agent-stat-talktime').innerText = '0m 0s';
+            document.getElementById('agent-stat-ptps').innerText = '0';
+
+            const statusBanner = document.getElementById('cockpit-call-status-text');
+            if (statusBanner) statusBanner.innerText = "Shift Closed (8:00 AM – 8:00 PM IST) • Auto-Purged";
+            renderCockpitCase();
+            return;
         }
 
+        // 2. Fetch Cases Queue
+        const res = await fetch(`/api/allocations/my-cases?agent_id=${currentAgent.id}`);
+        const data = await res.json();
+        cockpitCases = data.cases || [];
+        localStorage.setItem('debtflow_cached_cases_' + currentAgent.id, JSON.stringify(cockpitCases));
+
+        // 3. Update Scoreboard Metrics in Real-Time
         document.getElementById('agent-stat-queue').innerText = cockpitCases.length;
+        document.getElementById('agent-stat-dials').innerText = kpiData.total_dials || 0;
+        document.getElementById('agent-stat-connected').innerText = kpiData.connected_calls || 0;
+        document.getElementById('agent-stat-ptps').innerText = kpiData.ptps || 0;
 
-        // Fetch dials today
-        const statsRes = await fetch('/api/dashboard/stats');
-        const statsData = await statsRes.json();
-        const myStats = (statsData.leaderboard || []).find(l => l.agent_code === currentAgent.agent_code);
-
-        document.getElementById('agent-stat-dials').innerText = myStats ? myStats.calls_made : 0;
-        document.getElementById('agent-stat-ptps').innerText = myStats ? myStats.ptp_count : 0;
+        const talkSecs = kpiData.total_talk_seconds || 0;
+        localStorage.setItem('debtflow_today_talk_secs', String(talkSecs));
+        const mins = Math.floor(talkSecs / 60);
+        const statTalk = document.getElementById('agent-stat-talktime');
+        if (statTalk) {
+            statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${talkSecs % 60}s`;
+        }
 
         cockpitIndex = 0;
         renderCockpitCase();
@@ -898,22 +921,42 @@ async function handleAgentSelfUpload() {
 
     const btn = document.getElementById('btn-agent-upload-submit');
     btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Loading...`;
+    btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Syncing...`;
     lucide.createIcons();
 
-    // 100% PRIVATE LOCAL STORAGE ONLY: Never send customer numbers or names to server
-    cockpitCases = casesToUpload;
-    localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
-    cockpitIndex = 0;
-    renderCockpitCase();
-    closeAgentUploadModal();
-    document.getElementById('agent-file-input').value = '';
-    document.getElementById('agent-paste-numbers').value = '';
-
-    btn.disabled = false;
-    btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue`;
-    lucide.createIcons();
-    alert(`100% PRIVATE: ${casesToUpload.length} leads loaded directly into your phone local storage! Zero numbers sent to any server.`);
+    try {
+        const res = await fetch('/api/allocations/upload-agent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent_id: agentId, cases: casesToUpload, mode: 'replace' })
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+        } else {
+            cockpitCases = casesToUpload;
+            localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
+            cockpitIndex = 0;
+            renderCockpitCase();
+            closeAgentUploadModal();
+            document.getElementById('agent-file-input').value = '';
+            document.getElementById('agent-paste-numbers').value = '';
+            alert(`ACTIVE SHIFT QUEUE READY: ${casesToUpload.length} leads loaded and synchronized across APK & Web!\n\nNote: All records auto-purge at 8:00 PM IST.`);
+            loadAgentCasesAndStats();
+        }
+    } catch (e) {
+        // Fallback local save if network drops
+        cockpitCases = casesToUpload;
+        localStorage.setItem('debtflow_cached_cases_' + agentId, JSON.stringify(cockpitCases));
+        cockpitIndex = 0;
+        renderCockpitCase();
+        closeAgentUploadModal();
+        alert(`Saved locally: ${casesToUpload.length} leads loaded.`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Load into My Queue`;
+        lucide.createIcons();
+    }
 }
 
 // ----------------------------------------------------
@@ -1070,8 +1113,18 @@ function renderAgentsTable(agents) {
     tbody.innerHTML = agents.map(a => {
         const isRevoked = a.status === 'REVOKED';
         const statusBadge = isRevoked 
-            ? `<span class="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">REVOKED (LOCKED)</span>`
+            ? `<span class="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">LOCKED</span>`
             : `<span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">ACTIVE</span>`;
+
+        const onlineBadge = a.is_online
+            ? `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ONLINE</span>`
+            : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200 text-[10px] font-medium">OFFLINE</span>`;
+
+        const durSecs = a.today_login_duration_seconds || 0;
+        const durStr = durSecs > 0 ? (durSecs >= 3600 ? `${Math.floor(durSecs / 3600)}h ${Math.floor((durSecs % 3600) / 60)}m` : `${Math.floor(durSecs / 60)}m`) : '-';
+
+        const talkSecs = a.today_talk_seconds || 0;
+        const talkStr = talkSecs > 0 ? (talkSecs >= 3600 ? `${Math.floor(talkSecs / 3600)}h ${Math.floor((talkSecs % 3600) / 60)}m` : `${Math.floor(talkSecs / 60)}m ${talkSecs % 60}s`) : '0s';
 
         return `
             <tr class="hover:bg-slate-50 transition">
@@ -1080,15 +1133,21 @@ function renderAgentsTable(agents) {
                     <div class="text-slate-900 font-semibold">${a.full_name}</div>
                     <div class="text-[11px] text-slate-500 font-mono">${a.phone}</div>
                 </td>
-                <td class="py-3 px-4 font-mono font-bold text-slate-700">${a.assigned_cases || 0}</td>
-                <td class="py-3 px-4 font-mono font-bold text-emerald-700">${a.calls_today || 0}</td>
+                <td class="py-3 px-4">${onlineBadge}</td>
+                <td class="py-3 px-4 font-mono">
+                    <div class="text-slate-800 font-semibold text-[11px]">In: ${a.today_first_login || '-'}</div>
+                    <div class="text-[10px] text-slate-400 font-bold">${durStr}</div>
+                </td>
+                <td class="py-3 px-4 font-mono font-bold text-amber-700">${talkStr}</td>
+                <td class="py-3 px-4 font-mono font-bold text-emerald-700">${a.today_dials || 0}</td>
                 <td class="py-3 px-4">${statusBadge}</td>
                 <td class="py-3 px-4 text-right space-x-1.5">
                     ${isRevoked 
-                        ? `<button onclick="toggleKillSwitch(${a.id}, 'ACTIVATE')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Restore Access</button>`
-                        : `<button onclick="toggleKillSwitch(${a.id}, 'REVOKE')" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Kill-Switch</button>`
+                        ? `<button onclick="toggleKillSwitch(${a.id}, 'ACTIVATE')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Unlock</button>`
+                        : `<button onclick="toggleKillSwitch(${a.id}, 'REVOKE')" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">Lock</button>`
                     }
-                    <button onclick="openChangeAgentPasswordModal(${a.id}, '${a.agent_code}')" class="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-800 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Change Agent Password">Pass</button>
+                    <button onclick="openChangeAgentPasswordModal(${a.id}, '${a.agent_code}')" class="px-2 py-1 bg-white hover:bg-amber-50 hover:text-amber-800 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Change Password">Pass</button>
+                    <button onclick="resetDevice(${a.id})" class="px-2 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition" title="Clear Phone Lock">Reset</button>
                 </td>
             </tr>
         `;
@@ -1389,6 +1448,48 @@ function initDatePickers() {
 
 async function loadReports() {
     const date = document.getElementById('report-date')?.value || new Date().toISOString().slice(0, 10);
+
+    // 1. Load Permanent Productivity Summary (Zero Customer PII)
+    try {
+        const prodRes = await fetch(`/api/admin/historical-stats?date=${date}`);
+        const prodData = await prodRes.json();
+        const records = prodData.records || [];
+        const prodTbody = document.getElementById('productivity-table-body');
+        if (prodTbody) {
+            if (records.length === 0) {
+                prodTbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-400">No shift activity recorded on ${date}.</td></tr>`;
+            } else {
+                prodTbody.innerHTML = records.map(r => {
+                    const durSecs = r.login_duration_seconds || 0;
+                    const durStr = durSecs > 0 ? (durSecs >= 3600 ? `${Math.floor(durSecs / 3600)}h ${Math.floor((durSecs % 3600) / 60)}m` : `${Math.floor(durSecs / 60)}m`) : '-';
+
+                    const talkSecs = r.total_talk_seconds || 0;
+                    const talkStr = talkSecs > 0 ? (talkSecs >= 3600 ? `${Math.floor(talkSecs / 3600)}h ${Math.floor((talkSecs % 3600) / 60)}m` : `${Math.floor(talkSecs / 60)}m ${talkSecs % 60}s`) : '0s';
+
+                    return `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="py-2.5 px-4 font-bold text-slate-900 font-mono">${r.agent_code}</td>
+                            <td class="py-2.5 px-4">
+                                <div class="text-slate-900 font-semibold">${r.full_name}</div>
+                                <div class="text-[11px] text-slate-400 font-mono">${r.phone}</div>
+                            </td>
+                            <td class="py-2.5 px-4 font-mono font-medium text-slate-700">${r.first_login || '-'}</td>
+                            <td class="py-2.5 px-4 font-mono font-bold text-blue-700">${durStr}</td>
+                            <td class="py-2.5 px-4 font-mono font-bold text-slate-900">${r.total_dials || 0}</td>
+                            <td class="py-2.5 px-4 font-mono font-bold text-emerald-700">${r.connected_calls || 0}</td>
+                            <td class="py-2.5 px-4 font-mono font-bold text-purple-700">${r.connect_rate || 0}%</td>
+                            <td class="py-2.5 px-4 font-mono font-bold text-amber-700">${talkStr}</td>
+                            <td class="py-2.5 px-4 font-mono font-bold text-emerald-800">${r.ptp_count || 0}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (e) {
+        console.error('Historical stats error:', e);
+    }
+
+    // 2. Load Shift Call Records (Live shift before 8 PM purge)
     try {
         const res = await fetch(`/api/reports/export?date=${date}`);
         const data = await res.json();
@@ -1398,7 +1499,7 @@ async function loadReports() {
         if (!tbody) return;
 
         if (records.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No calls logged on ${date}.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">Shift call records for ${date} are purged or none exist. Check the permanent productivity summary above.</td></tr>`;
             return;
         }
 
@@ -1429,3 +1530,56 @@ function downloadCsvReport() {
     const date = document.getElementById('report-date')?.value || new Date().toISOString().slice(0, 10);
     window.location.href = `/api/reports/export?date=${date}&format=csv`;
 }
+
+// ----------------------------------------------------
+// 7. 30-MINUTE INACTIVITY AUTO-LOGOUT
+// ----------------------------------------------------
+let lastUserActivityTimestamp = Date.now();
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+function resetUserActivity() {
+    lastUserActivityTimestamp = Date.now();
+}
+
+['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+    window.addEventListener(evt, resetUserActivity, { passive: true });
+});
+
+setInterval(() => {
+    const isUserLoggedIn = (currentUserRole === 'agent' && currentAgent) || (currentUserRole === 'admin');
+    if (isUserLoggedIn && (Date.now() - lastUserActivityTimestamp > INACTIVITY_TIMEOUT_MS)) {
+        alert("Session Expired: You have been logged out due to 30 minutes of inactivity.");
+        logoutUser();
+    }
+}, 30000); // Check every 30 seconds
+
+// Background sync for Agent Cockpit: Refresh live scoreboard every 8 seconds
+setInterval(() => {
+    if (currentUserRole === 'agent' && currentAgent) {
+        fetch(`/api/agent/today-kpi?agent_id=${currentAgent.id}`)
+            .then(res => res.json())
+            .then(kpiData => {
+                if (!kpiData.shift_active) {
+                    loadAgentCasesAndStats();
+                    return;
+                }
+                const statDials = document.getElementById('agent-stat-dials');
+                const statConn = document.getElementById('agent-stat-connected');
+                const statTalk = document.getElementById('agent-stat-talktime');
+                const statPtps = document.getElementById('agent-stat-ptps');
+
+                if (statDials) statDials.innerText = kpiData.total_dials || 0;
+                if (statConn) statConn.innerText = kpiData.connected_calls || 0;
+                if (statPtps) statPtps.innerText = kpiData.ptps || 0;
+
+                const talkSecs = kpiData.total_talk_seconds || 0;
+                localStorage.setItem('debtflow_today_talk_secs', String(talkSecs));
+                const mins = Math.floor(talkSecs / 60);
+                if (statTalk) {
+                    statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${talkSecs % 60}s`;
+                }
+            })
+            .catch(() => {});
+    }
+}, 8000);
+
