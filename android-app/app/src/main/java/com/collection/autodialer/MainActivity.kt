@@ -826,28 +826,31 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 }
                 reader.close()
 
-                deleteFile("cached_cases.json")
+                // 100% PRIVATE LOCAL STORAGE: Save directly to phone storage without server roundtrip
                 assignedCases.clear()
-
-                val payload = JSONObject().apply {
-                    put("agent_id", agentId)
-                    put("cases", casesArray)
-                    put("clear_previous", true)
+                for (i in 0 until casesArray.length()) {
+                    assignedCases.add(casesArray.getJSONObject(i))
                 }
+                saveCasesLocally(casesArray)
+                currentCaseIndex = 0
 
-                val result = ApiClient.post("/api/allocations/upload-agent", payload)
                 handler.post {
-                    result.onSuccess {
-                        Toast.makeText(this@MainActivity, "Replaced queue with $count fresh leads!", Toast.LENGTH_LONG).show()
-                        fetchAssignedQueue(agentId, showToast = false)
-                    }.onFailure { err ->
-                        for (i in 0 until casesArray.length()) {
-                            assignedCases.add(casesArray.getJSONObject(i))
-                        }
-                        saveCasesLocally(casesArray)
-                        currentCaseIndex = 0
-                        updateDebtorCard()
-                        Toast.makeText(this@MainActivity, "Loaded $count fresh leads locally!", Toast.LENGTH_LONG).show()
+                    updateDebtorCard()
+                    Toast.makeText(this@MainActivity, "Loaded $count leads directly into your phone storage!", Toast.LENGTH_LONG).show()
+
+                    // Also sync into Live-Sync WebView if active
+                    if (::webView.isInitialized) {
+                        val casesJsonStr = casesArray.toString().replace("'", "\\'")
+                        webView.evaluateJavascript("""
+                            (function() {
+                                try {
+                                    cockpitCases = JSON.parse('$casesJsonStr');
+                                    cockpitIndex = 0;
+                                    localStorage.setItem('debtflow_cached_cases_' + ($agentId), JSON.stringify(cockpitCases));
+                                    if (typeof renderCockpitCase === 'function') renderCockpitCase();
+                                } catch(e) { console.error(e); }
+                            })();
+                        """.trimIndent(), null)
                     }
                 }
             } catch (e: Exception) {

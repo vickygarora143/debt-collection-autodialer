@@ -368,10 +368,10 @@ export default {
             // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 15,
-                    versionName: "1.1.5",
-                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.5.apk",
-                    changelog: "GDSDebtPro Ultra-Fast Instant Startup Engine"
+                    versionCode: 16,
+                    versionName: "1.1.6",
+                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.6.apk",
+                    changelog: "GDSDebtPro 100% Private Local Phone Queue Engine"
                 }), { headers: corsHeaders });
             }
 

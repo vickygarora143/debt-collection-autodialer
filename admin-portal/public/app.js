@@ -288,12 +288,17 @@ async function loadAgentCasesAndStats() {
     if (!currentAgent) return;
 
     try {
-        const res = await fetch(`/api/allocations/my-cases?agent_id=${currentAgent.id}`);
-        const data = await res.json();
-        cockpitCases = data.cases || [];
-
-        // Save local offline copy
-        localStorage.setItem('debtflow_cached_cases_' + currentAgent.id, JSON.stringify(cockpitCases));
+        const localCached = JSON.parse(localStorage.getItem('debtflow_cached_cases_' + currentAgent.id) || '[]');
+        if (localCached.length > 0) {
+            cockpitCases = localCached;
+        } else {
+            const res = await fetch(`/api/allocations/my-cases?agent_id=${currentAgent.id}`);
+            const data = await res.json();
+            cockpitCases = data.cases || [];
+            if (cockpitCases.length > 0) {
+                localStorage.setItem('debtflow_cached_cases_' + currentAgent.id, JSON.stringify(cockpitCases));
+            }
+        }
 
         document.getElementById('agent-stat-queue').innerText = cockpitCases.length;
 
