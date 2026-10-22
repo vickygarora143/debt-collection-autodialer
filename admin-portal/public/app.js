@@ -310,6 +310,16 @@ function renderCockpitCase() {
     const statDials = document.getElementById('agent-stat-dials');
     if (statDials) statDials.innerText = cockpitDialsCount;
 
+    const statConn = document.getElementById('agent-stat-connected');
+    if (statConn) statConn.innerText = localStorage.getItem('debtflow_today_connected') || '0';
+
+    const statTalk = document.getElementById('agent-stat-talktime');
+    if (statTalk) {
+        const talkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || '0', 10);
+        const mins = Math.floor(talkSecs / 60);
+        statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${talkSecs % 60}s`;
+    }
+
     if (cockpitCases.length === 0) {
         document.getElementById('cockpit-case-name').innerText = "Queue Empty! Import leads above";
         document.getElementById('cockpit-case-loan').innerText = "Loan Acc: -";
@@ -542,11 +552,54 @@ window.onNativeCallConnected = function() {
 window.onNativeCallDisconnected = function(durationSeconds) {
     if (!cockpitCalling && cockpitTimerSecs === 0) return; // Prevent duplicate triggers
 
-    cockpitTimerSecs = durationSeconds || 0;
+    const dur = Math.max(0, parseInt(durationSeconds) || 0);
+    cockpitTimerSecs = dur;
     endCockpitCall();
 
     cockpitDialsCount++;
     localStorage.setItem('debtflow_today_dials', String(cockpitDialsCount));
+
+    let cockpitTalkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || '0', 10) + dur;
+    localStorage.setItem('debtflow_today_talk_secs', String(cockpitTalkSecs));
+
+    let cockpitConnected = parseInt(localStorage.getItem('debtflow_today_connected') || '0', 10);
+    if (dur >= 5) {
+        cockpitConnected++;
+        localStorage.setItem('debtflow_today_connected', String(cockpitConnected));
+    }
+
+    // Update on-screen agent cockpit stats
+    const statDials = document.getElementById('agent-stat-dials');
+    if (statDials) statDials.innerText = cockpitDialsCount;
+
+    const statConn = document.getElementById('agent-stat-connected');
+    if (statConn) statConn.innerText = localStorage.getItem('debtflow_today_connected') || '0';
+
+    const statTalk = document.getElementById('agent-stat-talktime');
+    if (statTalk) {
+        const talkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || '0', 10);
+        const mins = Math.floor(talkSecs / 60);
+        statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${talkSecs % 60}s`;
+    }
+    const statConn = document.getElementById('agent-stat-connected');
+    if (statConn) statConn.innerText = cockpitConnected;
+    const statTalk = document.getElementById('agent-stat-talktime');
+    if (statTalk) {
+        const mins = Math.floor(cockpitTalkSecs / 60);
+        statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${cockpitTalkSecs % 60}s`;
+    }
+
+    // Anonymous real-time telemetry ping (Zero customer data: only agentId and call seconds!)
+    if (currentAgent && currentAgent.id && navigator.onLine) {
+        fetch('/api/telemetry/anonymous-call-stat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agent_id: currentAgent.id,
+                duration_seconds: dur
+            })
+        }).catch(() => {});
+    }
 
     // Mark current case dialed
     if (cockpitCases[cockpitIndex]) {
@@ -890,8 +943,15 @@ async function loadDashboardStats() {
         document.getElementById('kpi-total-calls').innerText = (kpis.total_calls_today || 0).toLocaleString();
         document.getElementById('kpi-connected-calls').innerText = (kpis.connected_calls || 0).toLocaleString();
         document.getElementById('kpi-connect-rate').innerText = `${kpis.connect_rate || 0}%`;
-        document.getElementById('kpi-ptp-amount').innerText = `₹${(kpis.total_ptp_amount || 0).toLocaleString()}`;
-        document.getElementById('kpi-ptp-cases').innerText = `${kpis.total_ptp_cases || 0} accounts`;
+
+        const talkSecs = kpis.total_talk_time_seconds || 0;
+        const talkMins = Math.floor(talkSecs / 60);
+        const talkHours = Math.floor(talkMins / 60);
+        const remMins = talkMins % 60;
+        const talkTimeStr = talkHours > 0 ? `${talkHours}h ${remMins}m` : `${talkMins}m ${talkSecs % 60}s`;
+        const kpiTalk = document.getElementById('kpi-talk-time');
+        if (kpiTalk) kpiTalk.innerText = talkTimeStr;
+
         document.getElementById('kpi-online-agents').innerText = kpis.online_agents || 0;
         document.getElementById('kpi-revoked-agents').innerText = kpis.revoked_agents || 0;
 
@@ -938,7 +998,10 @@ function renderLeaderboard(leaderboard) {
 
     tbody.innerHTML = leaderboard.map((row, index) => {
         const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-        const talkMins = Math.round((row.total_talk_seconds || 0) / 60);
+        const talkSecs = row.total_talk_seconds || 0;
+        const talkMins = Math.floor(talkSecs / 60);
+        const talkTimeStr = talkMins >= 60 ? `${Math.floor(talkMins / 60)}h ${talkMins % 60}m` : `${talkMins}m ${talkSecs % 60}s`;
+        const rate = row.calls_made > 0 ? Math.round(((row.connected_calls || 0) / row.calls_made) * 100) : 0;
         return `
             <tr class="hover:bg-slate-50 transition">
                 <td class="py-2.5 px-3">
@@ -947,9 +1010,9 @@ function renderLeaderboard(leaderboard) {
                     <span class="text-slate-500">(${row.full_name})</span>
                 </td>
                 <td class="py-2.5 px-3 font-mono font-bold text-blue-700">${row.calls_made}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-emerald-700">${row.ptp_count}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-amber-600">₹${(row.ptp_value || 0).toLocaleString()}</td>
-                <td class="py-2.5 px-3 text-slate-600 font-mono">${talkMins}m</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-emerald-700">${row.connected_calls || 0}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${rate}%</td>
+                <td class="py-2.5 px-3 text-amber-700 font-mono font-bold">${talkTimeStr}</td>
             </tr>
         `;
     }).join('');

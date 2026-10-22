@@ -151,23 +151,36 @@ export default {
                 return new Response(JSON.stringify({ success: true, message: `Password for ${agent.agent_code} updated successfully!` }), { headers: corsHeaders });
             }
 
-            // Offline Batch Sync Endpoint (Zero-server data retention: calls remain local to phone)
-            if (url.pathname === '/api/calls/batch-sync' && method === 'POST') {
-                return new Response(JSON.stringify({ success: true, message: 'Local dialer mode: zero server data retention.' }), { headers: corsHeaders });
+            // Anonymous Productivity Telemetry (Zero Customer Data: No phone numbers, no names, no audio)
+            if (url.pathname === '/api/telemetry/anonymous-call-stat' && method === 'POST') {
+                const body = await request.json();
+                const agentId = parseInt(body.agent_id);
+                const duration = Math.max(0, parseInt(body.duration_seconds) || 0);
+                const isConnected = duration >= 5 ? 1 : 0;
+
+                if (agentId && !isNaN(agentId)) {
+                    await env.DB.prepare(`
+                        INSERT INTO agent_productivity_stats (agent_id, stats_date, total_dials, connected_calls, total_talk_seconds)
+                        VALUES (?, DATE('now'), 1, ?, ?)
+                        ON CONFLICT(agent_id, stats_date) DO UPDATE SET
+                            total_dials = total_dials + 1,
+                            connected_calls = connected_calls + excluded.connected_calls,
+                            total_talk_seconds = total_talk_seconds + excluded.total_talk_seconds
+                    `).bind(agentId, isConnected, duration).run();
+                }
+                return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
             }
 
-            // 1. Dashboard Stats
+            // 1. Dashboard Stats (Aggregates from agent_productivity_stats: Zero Customer Data)
             if (url.pathname === '/api/dashboard/stats' && method === 'GET') {
-                const todayKpis = await env.DB.prepare(
-                    `SELECT 
-                        COUNT(id) as total_calls_today,
-                        SUM(CASE WHEN call_duration_seconds > 0 THEN 1 ELSE 0 END) as connected_calls,
-                        SUM(call_duration_seconds) as total_talk_time_seconds,
-                        SUM(CASE WHEN disposition IN ('PTP', 'BROKEN_PTP') THEN 1 ELSE 0 END) as total_ptp_cases,
-                        SUM(CASE WHEN disposition = 'PTP' THEN COALESCE(ptp_amount, 0) ELSE 0 END) as total_ptp_amount
-                     FROM call_logs
-                     WHERE DATE(called_at) = DATE('now')`
-                ).first();
+                const todayStats = await env.DB.prepare(`
+                    SELECT 
+                        COALESCE(SUM(total_dials), 0) as total_calls_today,
+                        COALESCE(SUM(connected_calls), 0) as connected_calls,
+                        COALESCE(SUM(total_talk_seconds), 0) as total_talk_time_seconds
+                    FROM agent_productivity_stats
+                    WHERE stats_date = DATE('now')
+                `).first();
 
                 const activeAgents = await env.DB.prepare(
                     `SELECT 
@@ -177,42 +190,39 @@ export default {
                      FROM agents`
                 ).first();
 
-                const { results: dispositions } = await env.DB.prepare(
-                    `SELECT disposition, COUNT(id) as count 
-                     FROM call_logs 
-                     WHERE DATE(called_at) = DATE('now')
-                     GROUP BY disposition
-                     ORDER BY count DESC`
-                ).all();
+                const { results: leaderboard } = await env.DB.prepare(`
+                    SELECT 
+                        a.id, a.agent_code, a.full_name,
+                        COALESCE(s.total_dials, 0) as calls_made,
+                        COALESCE(s.connected_calls, 0) as connected_calls,
+                        COALESCE(s.total_talk_seconds, 0) as total_talk_seconds
+                    FROM agents a
+                    LEFT JOIN agent_productivity_stats s ON s.agent_id = a.id AND s.stats_date = DATE('now')
+                    WHERE a.status = 'ACTIVE' AND COALESCE(s.total_dials, 0) > 0
+                    ORDER BY calls_made DESC, total_talk_seconds DESC
+                    LIMIT 10
+                `).all();
 
-                const { results: leaderboard } = await env.DB.prepare(
-                    `SELECT 
-                        a.agent_code, a.full_name,
-                        COUNT(cl.id) as calls_made,
-                        SUM(CASE WHEN cl.disposition = 'PTP' THEN 1 ELSE 0 END) as ptp_count,
-                        SUM(CASE WHEN cl.disposition = 'PTP' THEN COALESCE(cl.ptp_amount, 0) ELSE 0 END) as ptp_value,
-                        SUM(cl.call_duration_seconds) as total_talk_seconds
-                     FROM agents a
-                     INNER JOIN call_logs cl ON cl.agent_id = a.id AND DATE(cl.called_at) = DATE('now')
-                     GROUP BY a.id
-                     ORDER BY ptp_value DESC, calls_made DESC
-                     LIMIT 10`
-                ).all();
+                const totalCalls = todayStats?.total_calls_today || 0;
+                const connectedCalls = todayStats?.connected_calls || 0;
+                const talkSeconds = todayStats?.total_talk_time_seconds || 0;
+
+                const dispositions = [
+                    { disposition: 'Connected', count: connectedCalls },
+                    { disposition: 'Dropped / Unanswered', count: Math.max(0, totalCalls - connectedCalls) }
+                ].filter(d => d.count > 0);
 
                 return new Response(JSON.stringify({
                     kpis: {
-                        total_calls_today: todayKpis?.total_calls_today || 0,
-                        connected_calls: todayKpis?.connected_calls || 0,
-                        connect_rate: (todayKpis?.total_calls_today || 0) > 0 
-                            ? Math.round((todayKpis.connected_calls / todayKpis.total_calls_today) * 100) 
-                            : 0,
-                        total_ptp_amount: todayKpis?.total_ptp_amount || 0,
-                        total_ptp_cases: todayKpis?.total_ptp_cases || 0,
+                        total_calls_today: totalCalls,
+                        connected_calls: connectedCalls,
+                        connect_rate: totalCalls > 0 ? Math.round((connectedCalls / totalCalls) * 100) : 0,
+                        total_talk_time_seconds: talkSeconds,
                         online_agents: activeAgents?.online_now || 0,
                         total_agents: activeAgents?.total_agents || 0,
                         revoked_agents: activeAgents?.revoked_count || 0
                     },
-                    dispositions: dispositions || [],
+                    dispositions: dispositions,
                     leaderboard: leaderboard || []
                 }), { headers: corsHeaders });
             }
