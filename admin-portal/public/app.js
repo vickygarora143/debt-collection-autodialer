@@ -301,11 +301,8 @@ async function loadAgentCasesAndStats() {
             localStorage.setItem('debtflow_today_dials', '0');
             localStorage.setItem('debtflow_today_connected', '0');
 
-            document.getElementById('agent-stat-queue').innerText = '0';
-            document.getElementById('agent-stat-dials').innerText = '0';
-            document.getElementById('agent-stat-connected').innerText = '0';
-            document.getElementById('agent-stat-talktime').innerText = '0m 0s';
-            document.getElementById('agent-stat-ptps').innerText = '0';
+            if (document.getElementById('agent-stat-queue')) document.getElementById('agent-stat-queue').innerText = '0';
+            if (document.getElementById('agent-stat-dials')) document.getElementById('agent-stat-dials').innerText = '0';
 
             const statusBanner = document.getElementById('cockpit-call-status-text');
             if (statusBanner) statusBanner.innerText = "Shift Closed (8:00 AM – 8:00 PM IST) • Auto-Purged";
@@ -320,10 +317,8 @@ async function loadAgentCasesAndStats() {
         localStorage.setItem('debtflow_cached_cases_' + currentAgent.id, JSON.stringify(cockpitCases));
 
         // 3. Update Scoreboard Metrics in Real-Time
-        document.getElementById('agent-stat-queue').innerText = cockpitCases.length;
-        document.getElementById('agent-stat-dials').innerText = kpiData.total_dials || 0;
-        document.getElementById('agent-stat-connected').innerText = kpiData.connected_calls || 0;
-        document.getElementById('agent-stat-ptps').innerText = kpiData.ptps || 0;
+        if (document.getElementById('agent-stat-queue')) document.getElementById('agent-stat-queue').innerText = cockpitCases.length;
+        if (document.getElementById('agent-stat-dials')) document.getElementById('agent-stat-dials').innerText = kpiData.total_dials || 0;
 
         const talkSecs = kpiData.total_talk_seconds || 0;
         localStorage.setItem('debtflow_today_talk_secs', String(talkSecs));
@@ -544,6 +539,24 @@ function triggerCockpitDial() {
     cockpitTimerSecs = 0;
     cockpitCallStartTime = Date.now();
 
+    // 1-to-1 Truthful Dial Metric
+    cockpitDialsCount++;
+    localStorage.setItem('debtflow_today_dials', String(cockpitDialsCount));
+    const statDials = document.getElementById('agent-stat-dials');
+    if (statDials) statDials.innerText = cockpitDialsCount;
+
+    // Real-time telemetry ping (Accurate 1-to-1 Dial Metric)
+    if (currentAgent && currentAgent.id && navigator.onLine) {
+        fetch('/api/telemetry/anonymous-call-stat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agent_id: currentAgent.id,
+                duration_seconds: 0
+            })
+        }).catch(() => {});
+    }
+
     // Process Auto-SMS on Call
     const autoSmsChecked = document.getElementById('cockpit-auto-sms') ? document.getElementById('cockpit-auto-sms').checked : true;
     let smsStatusNote = "";
@@ -609,42 +622,18 @@ window.onNativeCallDisconnected = function(durationSeconds) {
     cockpitTimerSecs = dur;
     endCockpitCall();
 
-    cockpitDialsCount++;
-    localStorage.setItem('debtflow_today_dials', String(cockpitDialsCount));
-
     let cockpitTalkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || '0', 10) + dur;
     localStorage.setItem('debtflow_today_talk_secs', String(cockpitTalkSecs));
-
-    let cockpitConnected = parseInt(localStorage.getItem('debtflow_today_connected') || '0', 10);
-    if (dur >= 5) {
-        cockpitConnected++;
-        localStorage.setItem('debtflow_today_connected', String(cockpitConnected));
-    }
 
     // Update on-screen agent cockpit stats
     const statDials = document.getElementById('agent-stat-dials');
     if (statDials) statDials.innerText = cockpitDialsCount;
-
-    const statConn = document.getElementById('agent-stat-connected');
-    if (statConn) statConn.innerText = localStorage.getItem('debtflow_today_connected') || String(cockpitConnected);
 
     const statTalk = document.getElementById('agent-stat-talktime');
     if (statTalk) {
         const talkSecs = parseInt(localStorage.getItem('debtflow_today_talk_secs') || String(cockpitTalkSecs), 10);
         const mins = Math.floor(talkSecs / 60);
         statTalk.innerText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m ${talkSecs % 60}s`;
-    }
-
-    // Anonymous real-time telemetry ping (Zero customer data: only agentId and call seconds!)
-    if (currentAgent && currentAgent.id && navigator.onLine) {
-        fetch('/api/telemetry/anonymous-call-stat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                agent_id: currentAgent.id,
-                duration_seconds: dur
-            })
-        }).catch(() => {});
     }
 
     // STRICT LINEAR ADVANCE: Move to the very next row in queue (cockpitIndex + 1)

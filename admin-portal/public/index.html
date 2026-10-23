@@ -499,22 +499,20 @@
         <!-- Agent Calling Workspace: Pure Turbo Auto-Dialer (Zero Latency) -->
         <main class="flex-1 p-4 max-w-xl mx-auto w-full space-y-4">
             <!-- Agent Shift Stats Cards -->
-            <div class="grid grid-cols-4 gap-2">
-                <div class="bg-white border border-slate-200 rounded-2xl p-2 text-center shadow-sm">
-                    <div class="text-[9px] text-slate-400 uppercase font-bold">Dials</div>
-                    <div class="text-base font-black text-slate-900 mt-0.5" id="agent-stat-dials">0</div>
+            <div class="grid grid-cols-3 gap-2">
+                <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
+                    <div class="text-[9px] text-slate-400 uppercase font-bold">Total Dials</div>
+                    <div class="text-lg font-black text-slate-900 mt-0.5" id="agent-stat-dials">0</div>
                 </div>
-                <div class="bg-white border border-slate-200 rounded-2xl p-2 text-center shadow-sm">
-                    <div class="text-[9px] text-slate-400 uppercase font-bold">Connected</div>
-                    <div class="text-base font-black text-emerald-600 mt-0.5" id="agent-stat-connected">0</div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
+                    <div class="text-[9px] text-slate-400 uppercase font-bold">Shift Status</div>
+                    <div class="text-xs font-black text-emerald-600 mt-1.5 flex items-center justify-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 8AM-8PM Active
+                    </div>
                 </div>
-                <div class="bg-white border border-slate-200 rounded-2xl p-2 text-center shadow-sm">
-                    <div class="text-[9px] text-slate-400 uppercase font-bold">Talk Time</div>
-                    <div class="text-base font-black text-amber-600 mt-0.5" id="agent-stat-talktime">0m</div>
-                </div>
-                <div class="bg-white border border-slate-200 rounded-2xl p-2 text-center shadow-sm">
-                    <div class="text-[9px] text-slate-400 uppercase font-bold">Remaining</div>
-                    <div class="text-base font-black text-blue-600 mt-0.5" id="agent-stat-queue">0</div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-sm">
+                    <div class="text-[9px] text-slate-400 uppercase font-bold">Queue Left</div>
+                    <div class="text-lg font-black text-blue-600 mt-0.5" id="agent-stat-queue">0</div>
                 </div>
             </div>
 

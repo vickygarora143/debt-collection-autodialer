@@ -423,7 +423,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="PTPs"
+                            android:text="PROGRESS"
                             android:textColor="#94A3B8"
                             android:textSize="10sp"
                             android:textStyle="bold" />
@@ -433,9 +433,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="0"
+                            android:text="0 / 0"
                             android:textColor="#059669"
-                            android:textSize="18sp"
+                            android:textSize="16sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -660,112 +660,6 @@
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- 3E. 1-TOUCH DISPOSITION TAGS (MATCHES WEB APP EXACT COLORS) -->
-                    <LinearLayout
-                        android:id="@+id/layoutDispositions"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:orientation="vertical"
-                        android:visibility="visible">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center"
-                            android:text="1-TOUCH RECOVERY OUTCOME TAG"
-                            android:textColor="#94A3B8"
-                            android:textSize="10sp"
-                            android:textStyle="bold" />
-
-                        <!-- Row 1: PTP, Broken PTP, Paid -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:orientation="horizontal">
-
-                            <Button
-                                android:id="@+id/btnDispPtp"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginEnd="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#ECFDF5"
-                                android:text="PTP"
-                                android:textColor="#065F46"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <Button
-                                android:id="@+id/btnDispBrokenPtp"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginHorizontal="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#FFFBEB"
-                                android:text="Broken PTP"
-                                android:textColor="#92400E"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-
-                            <Button
-                                android:id="@+id/btnDispPaid"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#EFF6FF"
-                                android:text="Paid"
-                                android:textColor="#1E40AF"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <!-- Row 2: RNR, Busy, Wrong # -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:orientation="horizontal">
-
-                            <Button
-                                android:id="@+id/btnDispRnr"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginEnd="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#F1F5F9"
-                                android:text="RNR"
-                                android:textColor="#334155"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <Button
-                                android:id="@+id/btnDispBusy"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginHorizontal="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#F1F5F9"
-                                android:text="Busy / Off"
-                                android:textColor="#334155"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-
-                            <Button
-                                android:id="@+id/btnDispWrong"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#FFF1F2"
-                                android:text="Wrong #"
-                                android:textColor="#9F1239"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
 
                     <!-- 3F. MAIN CALL CONTROLS (RESPONSIVE PROPORTIONAL SCALING) -->
                     <LinearLayout

@@ -251,22 +251,20 @@ export default {
                 return new Response(JSON.stringify({ success: true, message: `Password for ${agent.agent_code} updated successfully!` }), { headers: corsHeaders });
             }
 
-            // Anonymous Productivity Telemetry
+            // Anonymous Productivity Telemetry (Accurate Real-Time Dial Counter)
             if (url.pathname === '/api/telemetry/anonymous-call-stat' && method === 'POST') {
                 const body = await request.json();
                 const agentId = parseInt(body.agent_id);
                 const duration = Math.max(0, parseInt(body.duration_seconds) || 0);
-                const isConnected = duration >= 5 ? 1 : 0;
 
                 if (agentId && !isNaN(agentId)) {
                     await env.DB.prepare(`
                         INSERT INTO agent_productivity_stats (agent_id, stats_date, total_dials, connected_calls, total_talk_seconds, ptp_count, first_login, login_duration_seconds)
-                        VALUES (?, ?, 1, ?, ?, 0, ?, 0)
+                        VALUES (?, ?, 1, 0, ?, 0, ?, 0)
                         ON CONFLICT(agent_id, stats_date) DO UPDATE SET
                             total_dials = total_dials + 1,
-                            connected_calls = connected_calls + excluded.connected_calls,
                             total_talk_seconds = total_talk_seconds + excluded.total_talk_seconds
-                    `).bind(agentId, istInfo.dateStr, isConnected, duration, istInfo.timeStr).run();
+                    `).bind(agentId, istInfo.dateStr, duration, istInfo.timeStr).run();
                 }
                 return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
             }
@@ -553,10 +551,10 @@ export default {
             // Version Check API for in-app auto updates
             if (url.pathname === '/api/version' && method === 'GET') {
                 return new Response(JSON.stringify({
-                    versionCode: 17,
-                    versionName: "1.1.7",
-                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.7.apk",
-                    changelog: "GDSDebtPro 8 AM - 8 PM Auto-Purge & Live Talk Time Mirror Engine"
+                    versionCode: 18,
+                    versionName: "1.1.8",
+                    apkUrl: "https://dialer.gdsdebtpro.workers.dev/DebtFlow-AutoDialer-v1.1.8.apk",
+                    changelog: "Turbo Auto-Dialer v1.1.8: Zero-Skip Sequential Engine, Purged Dispositions, Accurate 1-to-1 Dial Counter"
                 }), { headers: corsHeaders });
             }
 

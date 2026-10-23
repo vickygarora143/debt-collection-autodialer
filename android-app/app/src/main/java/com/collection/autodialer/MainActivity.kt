@@ -44,8 +44,8 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     // Telecaller KPI Metrics
     private var totalDialsToday = 0
-    private var totalPtpsToday = 0
-    private var pendingRnrRunnable: Runnable? = null
+    private var isDisconnectProcessing = false
+    private var pendingAutoDialRunnable: Runnable? = null
 
     // 30-Minute Inactivity Auto-Logout Tracking
     private var lastUserInteractionTime = System.currentTimeMillis()
@@ -91,7 +91,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     private lateinit var btnRefreshQueue: Button
     private lateinit var btnClearQueue: Button
     private lateinit var btnExportFeedback: Button
-    private lateinit var layoutDispositions: LinearLayout
 
     // Automated SMS Views
     private lateinit var cbAutoSms: CheckBox
@@ -173,7 +172,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         btnRefreshQueue = findViewById(R.id.btnRefreshQueue)
         btnClearQueue = findViewById(R.id.btnClearQueue)
         btnExportFeedback = findViewById(R.id.btnExportFeedback)
-        layoutDispositions = findViewById(R.id.layoutDispositions)
 
         cbAutoSms = findViewById(R.id.cbAutoSms)
         btnSmsTemplate = findViewById(R.id.btnSmsTemplate)
@@ -282,14 +280,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 TelephonyService.AudioMode.EARPIECE -> "Handset"
             }
         }
-
-        // 1-Tap Recovery Feedback Buttons (Always visible)
-        findViewById<Button>(R.id.btnDispPtp).setOnClickListener { recordDisposition("PTP") }
-        findViewById<Button>(R.id.btnDispBrokenPtp).setOnClickListener { recordDisposition("BROKEN_PTP") }
-        findViewById<Button>(R.id.btnDispRnr).setOnClickListener { recordDisposition("RNR") }
-        findViewById<Button>(R.id.btnDispBusy).setOnClickListener { recordDisposition("BUSY") }
-        findViewById<Button>(R.id.btnDispWrong).setOnClickListener { recordDisposition("WRONG_NUMBER") }
-        findViewById<Button>(R.id.btnDispPaid).setOnClickListener { recordDisposition("PAID_ONLINE") }
 
         // Login Button
         findViewById<Button>(R.id.btnLoginSubmit).setOnClickListener {
@@ -463,7 +453,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         val remaining = assignedCases.size - currentCaseIndex
         tvStatQueue.text = if (remaining > 0) remaining.toString() else "0"
         tvStatDials.text = totalDialsToday.toString()
-        tvStatPtps.text = totalPtpsToday.toString()
+        tvStatPtps.text = if (assignedCases.isNotEmpty()) "$totalDialsToday / ${assignedCases.size}" else "$totalDialsToday"
 
         if (currentCaseIndex >= assignedCases.size) {
             tvDebtorName.text = "Queue Completed! 🎉"
@@ -522,15 +512,49 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             return
         }
 
+        // 1-to-1 Truthful Hardware Dial Count
         totalDialsToday++
         tvStatDials.text = totalDialsToday.toString()
+        val dialedProgress = if (assignedCases.isNotEmpty()) "$totalDialsToday / ${assignedCases.size}" else "$totalDialsToday"
+        tvStatPtps.text = dialedProgress
 
         tvCallStatus.text = "Dialing $phoneNumber..."
         tvCallTimer.text = "00:00"
         isCallInProgress = true
+        isDisconnectProcessing = false
+        lastDialedPhone = phoneNumber
 
-        // Direct Cellular SIM Call (Smart outcome-based SMS triggers on RNR or PTP post-call)
+        // Direct Cellular SIM Call
         telephonyService.placeCall(phoneNumber)
+
+        // Process Auto-SMS on Call Dispatch if enabled
+        if (cbAutoSms.isChecked) {
+            val debtorName = item.optString("customer_name", "Customer")
+            val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
+            val agentPhone = SecurityManager.getAgentPhone(this)
+            SmsSenderService.sendAutoSms(
+                context = this,
+                recipientPhone = phoneNumber,
+                customerName = debtorName,
+                overdueAmount = overdueAmt,
+                agentPhone = agentPhone
+            )
+        }
+
+        // Asynchronous Anonymous Telemetry Ping to Server (Accurate 1-to-1 Dial Metric)
+        val agentId = SecurityManager.getAgentId(this)
+        if (agentId != -1) {
+            thread {
+                try {
+                    ApiClient.post("/api/telemetry/anonymous-call-stat", JSONObject().apply {
+                        put("agent_id", agentId)
+                        put("duration_seconds", 0)
+                    })
+                } catch (e: Exception) {
+                    // Ignore telemetry network hiccup
+                }
+            }
+        }
     }
 
     private fun startCallTimerTicker() {
@@ -566,53 +590,48 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     }
 
     override fun onCallDisconnected(durationSeconds: Int) {
+        if (!isCallInProgress && isDisconnectProcessing) {
+            return
+        }
+        isDisconnectProcessing = true
         isCallInProgress = false
-        handler.postDelayed({
+
+        handler.post {
             stopCallTimerTicker()
             bringAppToFront()
 
-            val currentPhone = if (lastDialedPhone.isNotEmpty()) lastDialedPhone else (if (currentCaseIndex < assignedCases.size) assignedCases[currentCaseIndex].optString("primary_phone") else "")
-            val realDuration = telephonyService.getAccurateTalkDuration(currentPhone)
-            currentCallDuration = realDuration
+            // Strict Linear Single-Step Progression (+1 only)
+            currentCaseIndex++
+            updateDebtorCard()
 
-            // Dispatch accurate hardware talk duration to Live-Sync Chromium Engine
-            if (::webView.isInitialized) {
-                webView.evaluateJavascript("window.onNativeCallDisconnected && window.onNativeCallDisconnected($realDuration);", null)
-            }
-
-            val isRnr = realDuration == 0
-
-            if (isRnr) {
-                // RNR: Ringing dropped / Unanswered
-                tvCallStatus.text = "RNR (Unanswered) • Auto-Logged ✓ Next in 0.8s"
-
-                // Auto-SMS on RNR: Dispatch Urgent Callback Notice
-                if (cbAutoSms.isChecked && currentPhone.isNotEmpty() && currentCaseIndex < assignedCases.size) {
-                    val item = assignedCases[currentCaseIndex]
-                    val debtorName = item.optString("customer_name", "")
-                    val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
-                    val agentPhone = SecurityManager.getAgentPhone(this)
-
-                    SmsSenderService.sendRnrCallbackSms(
-                        context = this,
-                        recipientPhone = currentPhone,
-                        customerName = debtorName,
-                        overdueAmount = overdueAmt,
-                        agentPhone = agentPhone
-                    )
+            if (currentCaseIndex < assignedCases.size) {
+                if (isAutoDialingActive && !isPaused) {
+                    tvCallStatus.text = "Call Ended • Next lead in 1.2s..."
+                    pendingAutoDialRunnable?.let { handler.removeCallbacks(it) }
+                    val runnable = Runnable {
+                        isDisconnectProcessing = false
+                        if (isAutoDialingActive && !isPaused) {
+                            dialCurrentCase()
+                        }
+                    }
+                    pendingAutoDialRunnable = runnable
+                    handler.postDelayed(runnable, 1200)
+                } else {
+                    tvCallStatus.text = "Call Ended • Ready for Next Lead"
+                    isDisconnectProcessing = false
                 }
-
-                // Instant 0.8s pacing straight to next lead without waiting
-                pendingRnrRunnable?.let { handler.removeCallbacks(it) }
-                val runnable = Runnable { recordDisposition("RNR") }
-                pendingRnrRunnable = runnable
-                handler.postDelayed(runnable, 800)
             } else {
-                // GENUINE CONNECTED TALK (customer spoke for X seconds)
-                tvCallStatus.text = "Connected (${realDuration}s) • Tap Customer Outcome"
-                // Do NOT force RNR timer! Give agent full control to tap PTP / Paid
+                tvCallStatus.text = "Queue Completed! 🎉 All leads dialed"
+                stopAutoDialing()
+                isDisconnectProcessing = false
+                Toast.makeText(this@MainActivity, "All leads in queue have been dialed!", Toast.LENGTH_LONG).show()
             }
-        }, 350)
+
+            // Sync with Live-Sync WebView if active
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("window.onNativeCallDisconnected && window.onNativeCallDisconnected(0);", null)
+            }
+        }
     }
 
     private fun bringAppToFront() {
@@ -626,85 +645,31 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         }
     }
 
-    private fun recordDisposition(disposition: String) {
-        countdownTimer?.cancel()
-        pendingRnrRunnable?.let { handler.removeCallbacks(it) }
-        pendingRnrRunnable = null
-
-        if (disposition == "PTP") {
-            totalPtpsToday++
-            tvStatPtps.text = totalPtpsToday.toString()
-
-            // Automated Payment Details SMS on PTP
-            if (cbAutoSms.isChecked && currentCaseIndex < assignedCases.size) {
-                val item = assignedCases[currentCaseIndex]
-                val debtorName = item.optString("customer_name", "")
-                val overdueAmt = "₹ ${item.optDouble("overdue_amount", 0.0).toInt()}"
-                val agentPhone = SecurityManager.getAgentPhone(this)
-                val phone = item.optString("primary_phone", "")
-
-                SmsSenderService.sendAutoSms(
-                    context = this,
-                    recipientPhone = phone,
-                    customerName = debtorName,
-                    overdueAmount = overdueAmt,
-                    agentPhone = agentPhone
-                )
-            }
-        }
-
-        if (assignedCases.isNotEmpty() && currentCaseIndex < assignedCases.size) {
-            val currentCase = assignedCases[currentCaseIndex]
-            val allocId = currentCase.optInt("id", 0)
-            val phone = currentCase.optString("primary_phone", "")
-            val agentId = SecurityManager.getAgentId(this)
-
-            thread {
-                try {
-                    val payload = JSONObject().apply {
-                        put("allocation_id", allocId)
-                        put("agent_id", agentId)
-                        put("dialed_phone", phone)
-                        put("call_duration_seconds", currentCallDuration)
-                        put("disposition", disposition)
-                        put("timestamp", System.currentTimeMillis())
-                    }
-                    val res = ApiClient.post("/api/calls/log", payload)
-                    if (res.isFailure) {
-                        saveOfflineCallLog(payload)
-                    } else {
-                        syncOfflineLogsIfNeeded(agentId)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-
-        advanceToNextLead(autoDial = isAutoDialingActive)
-    }
-
     private fun advanceToNextLead(autoDial: Boolean) {
         countdownTimer?.cancel()
-        currentCaseIndex++
+        pendingAutoDialRunnable?.let { handler.removeCallbacks(it) }
+        pendingAutoDialRunnable = null
+        isDisconnectProcessing = false
 
+        currentCaseIndex++
         updateDebtorCard()
 
         if (currentCaseIndex < assignedCases.size) {
             if (autoDial && !isPaused) {
-                tvCallStatus.text = "Next call starting in 1.5s..."
-                handler.postDelayed({
+                tvCallStatus.text = "Next call in 1.2s..."
+                val runnable = Runnable {
                     if (isAutoDialingActive && !isPaused) {
                         dialCurrentCase()
                     }
-                }, 1500)
+                }
+                pendingAutoDialRunnable = runnable
+                handler.postDelayed(runnable, 1200)
             } else {
                 tvCallStatus.text = "Ready to Dial"
             }
         } else {
-            Toast.makeText(this, "Queue Completed! Tap 'Retry RNR' to redial unanswered leads.", Toast.LENGTH_LONG).show()
-            tvCallStatus.text = "Queue Completed • Tap Refresh to Retry RNRs"
-            btnRefreshQueue.text = "Retry RNRs"
+            Toast.makeText(this, "Queue Completed!", Toast.LENGTH_LONG).show()
+            tvCallStatus.text = "Queue Completed • All leads dialed"
             stopAutoDialing()
         }
     }
@@ -1156,16 +1121,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     override fun onResume() {
         super.onResume()
-        if (isCallInProgress || telephonyService.isCurrentlyInCall()) {
-            isCallInProgress = false
-            stopCallTimerTicker()
-            val currentPhone = if (lastDialedPhone.isNotEmpty()) lastDialedPhone else (if (currentCaseIndex < assignedCases.size) assignedCases[currentCaseIndex].optString("primary_phone") else "")
-            val realDuration = telephonyService.getAccurateTalkDuration(currentPhone)
-            currentCallDuration = realDuration
-            tvCallStatus.text = "Call Ended • Pacing to Next"
-            telephonyService.resetCallState()
-        }
-
+        checkForAppUpdates()
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1 && assignedCases.isEmpty()) {
             fetchAssignedQueue(agentId, showToast = false)
