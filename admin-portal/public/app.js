@@ -485,6 +485,7 @@ function updateTurboDialerUI(active) {
 }
 
 let isProcessingDisconnect = false;
+let lastDisconnectTimestamp = 0;
 
 function advanceCockpitCase(direction) {
     clearTimeout(turboPacingTimer);
@@ -612,11 +613,13 @@ window.onNativeCallConnected = function() {
 };
 
 window.onNativeCallDisconnected = function(durationSeconds) {
-    // MUTEX GUARD: Ignore duplicate disconnect signals arriving during transition or while pacing
-    if (!cockpitCalling || isProcessingDisconnect) {
+    const now = Date.now();
+    // MUTEX & TIME DEBOUNCE GUARD: Ignore duplicate disconnect signals arriving during transition or within 1000ms
+    if (!cockpitCalling || isProcessingDisconnect || (now - lastDisconnectTimestamp < 1000)) {
         return;
     }
     isProcessingDisconnect = true;
+    lastDisconnectTimestamp = now;
 
     const dur = Math.max(0, parseInt(durationSeconds) || 0);
     cockpitTimerSecs = dur;
@@ -687,10 +690,20 @@ window.onNativeCallDisconnected = function(durationSeconds) {
     }, delayMs);
 };
 
-// Fail-Safe: Detect App Resume (Only updates timer display, NEVER skips leads)
+// Bulletproof Fail-Safe: Detect App Resume when telecaller returns from in-call screen
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !cockpitCalling && !isProcessingDisconnect) {
-        renderCockpitCase();
+    if (document.visibilityState === 'visible') {
+        if (cockpitCalling && !isProcessingDisconnect) {
+            const elapsed = Math.max(0, Math.floor((Date.now() - cockpitCallStartTime) / 1000));
+            setTimeout(() => {
+                if (cockpitCalling && !isProcessingDisconnect && (Date.now() - lastDisconnectTimestamp >= 1000)) {
+                    console.log('[TELEPHONY FAIL-SAFE] Phone returned to app screen. Triggering disconnect pacing.');
+                    window.onNativeCallDisconnected(elapsed);
+                }
+            }, 300);
+        } else if (!cockpitCalling && !isProcessingDisconnect) {
+            renderCockpitCase();
+        }
     }
 });
 

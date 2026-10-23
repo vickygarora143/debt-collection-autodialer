@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     // Telecaller KPI Metrics
     private var totalDialsToday = 0
     private var isDisconnectProcessing = false
+    private var lastNativeDisconnectTime = 0L
     private var pendingAutoDialRunnable: Runnable? = null
 
     // 30-Minute Inactivity Auto-Logout Tracking
@@ -590,41 +591,47 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     }
 
     override fun onCallDisconnected(durationSeconds: Int) {
-        if (!isCallInProgress && isDisconnectProcessing) {
+        val now = System.currentTimeMillis()
+        if (isDisconnectProcessing || (now - lastNativeDisconnectTime < 1000)) {
             return
         }
         isDisconnectProcessing = true
+        lastNativeDisconnectTime = now
         isCallInProgress = false
 
         handler.post {
             stopCallTimerTicker()
             bringAppToFront()
 
-            // Strict Linear Single-Step Progression (+1 only)
-            currentCaseIndex++
-            updateDebtorCard()
+            // Strict Linear Single-Step Progression (+1 only) if native queue is active
+            if (assignedCases.isNotEmpty()) {
+                currentCaseIndex++
+                updateDebtorCard()
 
-            if (currentCaseIndex < assignedCases.size) {
-                if (isAutoDialingActive && !isPaused) {
-                    tvCallStatus.text = "Call Ended • Next lead in 1.2s..."
-                    pendingAutoDialRunnable?.let { handler.removeCallbacks(it) }
-                    val runnable = Runnable {
-                        isDisconnectProcessing = false
-                        if (isAutoDialingActive && !isPaused) {
-                            dialCurrentCase()
+                if (currentCaseIndex < assignedCases.size) {
+                    if (isAutoDialingActive && !isPaused) {
+                        tvCallStatus.text = "Call Ended • Next lead in 1.2s..."
+                        pendingAutoDialRunnable?.let { handler.removeCallbacks(it) }
+                        val runnable = Runnable {
+                            isDisconnectProcessing = false
+                            if (isAutoDialingActive && !isPaused) {
+                                dialCurrentCase()
+                            }
                         }
+                        pendingAutoDialRunnable = runnable
+                        handler.postDelayed(runnable, 1200)
+                    } else {
+                        tvCallStatus.text = "Call Ended • Ready for Next Lead"
+                        isDisconnectProcessing = false
                     }
-                    pendingAutoDialRunnable = runnable
-                    handler.postDelayed(runnable, 1200)
                 } else {
-                    tvCallStatus.text = "Call Ended • Ready for Next Lead"
+                    tvCallStatus.text = "Queue Completed! 🎉 All leads dialed"
+                    stopAutoDialing()
                     isDisconnectProcessing = false
+                    Toast.makeText(this@MainActivity, "All leads in queue have been dialed!", Toast.LENGTH_LONG).show()
                 }
             } else {
-                tvCallStatus.text = "Queue Completed! 🎉 All leads dialed"
-                stopAutoDialing()
                 isDisconnectProcessing = false
-                Toast.makeText(this@MainActivity, "All leads in queue have been dialed!", Toast.LENGTH_LONG).show()
             }
 
             // Sync with Live-Sync WebView if active
@@ -1125,6 +1132,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
         val agentId = SecurityManager.getAgentId(this)
         if (agentId != -1 && assignedCases.isEmpty()) {
             fetchAssignedQueue(agentId, showToast = false)
+        }
+        // Fail-Safe: If app resumes and phone call has finished, notify listeners
+        if (isCallInProgress && !telephonyService.isCurrentlyInCall()) {
+            onCallDisconnected(0)
         }
     }
 
