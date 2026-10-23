@@ -78,7 +78,10 @@ class TelephonyService(private val context: Context, private val listener: CallS
     }
 
     // 3. Telephony State Monitoring across Android versions
+    private var isListenerRegistered = false
+
     fun ensureListenerRegistered() {
+        if (isListenerRegistered) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 telephonyManager.registerTelephonyCallback(
@@ -89,6 +92,7 @@ class TelephonyService(private val context: Context, private val listener: CallS
                         }
                     }
                 )
+                isListenerRegistered = true
             } else {
                 @Suppress("DEPRECATION")
                 telephonyManager.listen(object : PhoneStateListener() {
@@ -97,6 +101,7 @@ class TelephonyService(private val context: Context, private val listener: CallS
                         handleStateChange(state)
                     }
                 }, PhoneStateListener.LISTEN_CALL_STATE)
+                isListenerRegistered = true
             }
         } catch (e: SecurityException) {
             // Permission pending from user; will be registered once permission granted

@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
     // Telecaller KPI Metrics
     private var totalDialsToday = 0
     private var totalPtpsToday = 0
+    private var pendingRnrRunnable: Runnable? = null
 
     // 30-Minute Inactivity Auto-Logout Tracking
     private var lastUserInteractionTime = System.currentTimeMillis()
@@ -602,9 +603,10 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
                 }
 
                 // Instant 0.8s pacing straight to next lead without waiting
-                handler.postDelayed({
-                    recordDisposition("RNR")
-                }, 800)
+                pendingRnrRunnable?.let { handler.removeCallbacks(it) }
+                val runnable = Runnable { recordDisposition("RNR") }
+                pendingRnrRunnable = runnable
+                handler.postDelayed(runnable, 800)
             } else {
                 // GENUINE CONNECTED TALK (customer spoke for X seconds)
                 tvCallStatus.text = "Connected (${realDuration}s) • Tap Customer Outcome"
@@ -626,6 +628,8 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
 
     private fun recordDisposition(disposition: String) {
         countdownTimer?.cancel()
+        pendingRnrRunnable?.let { handler.removeCallbacks(it) }
+        pendingRnrRunnable = null
 
         if (disposition == "PTP") {
             totalPtpsToday++
@@ -1160,11 +1164,6 @@ class MainActivity : AppCompatActivity(), TelephonyService.CallStateEventListene
             currentCallDuration = realDuration
             tvCallStatus.text = "Call Ended • Pacing to Next"
             telephonyService.resetCallState()
-
-            // Fail-safe dispatch to Live-Sync WebView immediately upon returning from phone call
-            if (::webView.isInitialized) {
-                webView.evaluateJavascript("window.onNativeCallDisconnected && window.onNativeCallDisconnected($realDuration);", null)
-            }
         }
 
         val agentId = SecurityManager.getAgentId(this)

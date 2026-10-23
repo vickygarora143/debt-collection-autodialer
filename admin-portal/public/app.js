@@ -448,21 +448,16 @@ function startTurboAutoDial() {
         return;
     }
 
-    // Check if current case is already dialed, if so advance to first undialed
-    if (cockpitCases[cockpitIndex] && cockpitCases[cockpitIndex]._dialed) {
-        let firstUndialed = cockpitCases.findIndex(c => !c._dialed);
-        if (firstUndialed !== -1) {
-            cockpitIndex = firstUndialed;
-            renderCockpitCase();
-        } else {
-            alert('All leads in queue have already been dialed! Tap "+ Import List" or "Clear Queue" for a new batch.');
-            return;
-        }
+    if (cockpitIndex >= cockpitCases.length) {
+        cockpitIndex = 0;
+        cockpitCases.forEach(c => c._dialed = false);
     }
 
     turboAutoDialing = true;
     cockpitPaused = false;
+    isProcessingDisconnect = false;
     updateTurboDialerUI(true);
+    renderCockpitCase();
     triggerCockpitDial();
 }
 
@@ -494,43 +489,25 @@ function updateTurboDialerUI(active) {
     lucide.createIcons();
 }
 
+let isProcessingDisconnect = false;
+
 function advanceCockpitCase(direction) {
     clearTimeout(turboPacingTimer);
+    isProcessingDisconnect = false;
     if (cockpitCases.length === 0) return;
 
     if (direction > 0) {
-        // Mark current as processed
-        if (cockpitCases[cockpitIndex]) {
-            cockpitCases[cockpitIndex]._dialed = true;
+        if (cockpitIndex + 1 < cockpitCases.length) {
+            cockpitIndex++;
+        } else {
+            alert('You are already at the last lead in the queue.');
         }
-        // Look for next un-dialed lead
-        let nextIndex = -1;
-        for (let i = cockpitIndex + 1; i < cockpitCases.length; i++) {
-            if (!cockpitCases[i]._dialed) {
-                nextIndex = i;
-                break;
-            }
-        }
-        if (nextIndex === -1) {
-            // Check from beginning
-            for (let i = 0; i < cockpitCases.length; i++) {
-                if (!cockpitCases[i]._dialed) {
-                    nextIndex = i;
-                    break;
-                }
-            }
-        }
-        if (nextIndex === -1) {
-            // All dialed!
-            stopTurboAutoDial();
-            renderCockpitCase();
-            document.getElementById('cockpit-call-status-text').innerText = "Queue Complete! All leads dialed ✓";
-            alert('Campaign Complete: All leads have been dialed!');
-            return;
-        }
-        cockpitIndex = nextIndex;
     } else {
-        cockpitIndex = (cockpitIndex - 1 + cockpitCases.length) % cockpitCases.length;
+        if (cockpitIndex - 1 >= 0) {
+            cockpitIndex--;
+        } else {
+            alert('You are already at the first lead.');
+        }
     }
 
     renderCockpitCase();
@@ -550,12 +527,20 @@ function triggerCockpitDial() {
         return;
     }
 
+    if (cockpitIndex >= cockpitCases.length) {
+        stopTurboAutoDial();
+        renderCockpitCase();
+        alert('All leads in queue have been dialed!');
+        return;
+    }
+
     const item = cockpitCases[cockpitIndex];
     if (!item) return;
 
-    // Immediately flag this lead as DIALED so it can never be duplicate-dialed!
+    // Flag this specific row as dialed
     item._dialed = true;
     cockpitCalling = true;
+    isProcessingDisconnect = false;
     cockpitTimerSecs = 0;
     cockpitCallStartTime = Date.now();
 
@@ -614,7 +599,11 @@ window.onNativeCallConnected = function() {
 };
 
 window.onNativeCallDisconnected = function(durationSeconds) {
-    if (!cockpitCalling && cockpitTimerSecs === 0) return; // Prevent duplicate triggers
+    // MUTEX GUARD: Ignore duplicate disconnect signals arriving during transition or while pacing
+    if (!cockpitCalling || isProcessingDisconnect) {
+        return;
+    }
+    isProcessingDisconnect = true;
 
     const dur = Math.max(0, parseInt(durationSeconds) || 0);
     cockpitTimerSecs = dur;
@@ -658,81 +647,61 @@ window.onNativeCallDisconnected = function(durationSeconds) {
         }).catch(() => {});
     }
 
-    // Mark current case dialed
-    if (cockpitCases[cockpitIndex]) {
-        cockpitCases[cockpitIndex]._dialed = true;
-    }
+    // STRICT LINEAR ADVANCE: Move to the very next row in queue (cockpitIndex + 1)
+    // Preserves 100% duplicate leads (e.g. 3 attempts for same customer)
+    const nextIndex = cockpitIndex + 1;
 
-    // Find the next UN-DIALED lead sequentially
-    let nextIndex = -1;
-    for (let i = cockpitIndex + 1; i < cockpitCases.length; i++) {
-        if (!cockpitCases[i]._dialed) {
-            nextIndex = i;
-            break;
-        }
-    }
-    if (nextIndex === -1) {
-        for (let i = 0; i < cockpitCases.length; i++) {
-            if (!cockpitCases[i]._dialed) {
-                nextIndex = i;
-                break;
-            }
-        }
-    }
-
-    // If all cases are dialed, campaign finishes!
-    if (nextIndex === -1) {
+    // Check if entire queue completed
+    if (nextIndex >= cockpitCases.length) {
         stopTurboAutoDial();
         renderCockpitCase();
-        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Campaign Complete ✓ (All Dialed)`;
-        alert(`🎉 Campaign Complete: All ${cockpitCases.length} debtor leads have been successfully dialed!`);
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${dur}s) • Campaign Complete ✓ (All ${cockpitCases.length} Dialed)`;
+        isProcessingDisconnect = false;
+        alert(`🎉 Campaign Complete: All ${cockpitCases.length} leads have been successfully dialed!`);
         return;
     }
 
-    // Advance queue to next un-dialed customer
+    // Advance strictly by +1
     cockpitIndex = nextIndex;
     renderCockpitCase();
 
     if (!turboAutoDialing) {
-        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Ready for Lead #${cockpitIndex + 1}`;
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${dur}s) • Ready for Lead #${cockpitIndex + 1}`;
+        isProcessingDisconnect = false;
         return;
     }
 
     if (cockpitPaused) {
-        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Paused (Take Notes)`;
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${dur}s) • Paused (Take Notes)`;
+        isProcessingDisconnect = false;
         return;
     }
 
     if (turboPaceMode === 'manual') {
-        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${durationSeconds}s) • Tap [Dial Next] or [Next Lead]`;
+        document.getElementById('cockpit-call-status-text').innerText = `Call Ended (${dur}s) • Tap [Dial Next] or [Next Lead]`;
+        isProcessingDisconnect = false;
         return;
     }
 
     // Auto-pacing to next customer
     const delayMs = turboPaceMode === 'turbo' ? 1200 : 2500;
     const delaySec = (delayMs / 1000).toFixed(1);
-    const nextName = cockpitCases[cockpitIndex] ? cockpitCases[cockpitIndex].customer_name : 'Next';
+    const nextName = cockpitCases[cockpitIndex] ? cockpitCases[cockpitIndex].customer_name : `Lead #${cockpitIndex + 1}`;
     document.getElementById('cockpit-call-status-text').innerText = `Next: ${nextName} in ${delaySec}s...`;
 
     clearTimeout(turboPacingTimer);
     turboPacingTimer = setTimeout(() => {
-        if (turboAutoDialing && !cockpitPaused && cockpitCases.length > 0) {
+        isProcessingDisconnect = false;
+        if (turboAutoDialing && !cockpitPaused && cockpitIndex < cockpitCases.length) {
             triggerCockpitDial();
         }
     }, delayMs);
 };
 
-// Dual Fail-Safe: Detect App Resume / Visibility Change
+// Fail-Safe: Detect App Resume (Only updates timer display, NEVER skips leads)
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && cockpitCalling) {
-        console.log('[TELEPHONY FAIL-SAFE] App resumed into foreground. Inspecting call state...');
-        const elapsed = Math.max(0, Math.floor((Date.now() - cockpitCallStartTime) / 1000));
-        setTimeout(() => {
-            if (cockpitCalling) {
-                console.log('[TELEPHONY FAIL-SAFE] Auto-terminating stuck call and advancing lead.');
-                window.onNativeCallDisconnected(elapsed);
-            }
-        }, 400);
+    if (document.visibilityState === 'visible' && !cockpitCalling && !isProcessingDisconnect) {
+        renderCockpitCase();
     }
 });
 
@@ -876,6 +845,59 @@ function closeAgentUploadModal() {
     document.getElementById('agent-upload-modal').classList.add('hidden');
 }
 
+function extractCaseFromRow(r, idx) {
+    let rawPhone = '';
+    let name = '';
+    let loan = '';
+    let amount = 0;
+    let dpd = 0;
+    let bucket = 'SELF';
+
+    for (const [key, val] of Object.entries(r)) {
+        const k = key.toLowerCase().replace(/[\s_\-\.]/g, '');
+        const v = String(val || '').trim();
+
+        if (k.includes('phone') || k.includes('mobile') || k.includes('contact') || k.includes('cell') || k === 'number') {
+            if (!rawPhone && v) rawPhone = v;
+        } else if (k.includes('name') || k.includes('customer') || k.includes('borrower') || k.includes('client')) {
+            if (!name && v) name = v;
+        } else if (k.includes('loan') || k.includes('account') || k.includes('acc') || k.includes('agreement') || k.includes('deal')) {
+            if (!loan && v) loan = v;
+        } else if (k.includes('amount') || k.includes('overdue') || k.includes('pos') || k.includes('balance') || k.includes('due')) {
+            const parsedAmt = parseFloat(v.replace(/[^0-9\.]/g, ''));
+            if (!isNaN(parsedAmt) && parsedAmt > 0) amount = parsedAmt;
+        } else if (k.includes('dpd') || k.includes('days')) {
+            const parsedDpd = parseInt(v.replace(/\D/g, ''), 10);
+            if (!isNaN(parsedDpd)) dpd = parsedDpd;
+        } else if (k.includes('bucket')) {
+            if (v) bucket = v;
+        }
+    }
+
+    if (!rawPhone) {
+        for (const val of Object.values(r)) {
+            const digits = String(val || '').replace(/\D/g, '');
+            if (digits.length >= 10 && digits.length <= 13) {
+                rawPhone = digits;
+                break;
+            }
+        }
+    }
+
+    let cleanPhone = rawPhone.replace(/\D/g, '');
+    if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) cleanPhone = cleanPhone.substring(2);
+    if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.substring(1);
+
+    return {
+        customer_name: name || `Borrower #${idx + 1}`,
+        loan_account_no: loan || `SLF-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        primary_phone: cleanPhone,
+        overdue_amount: amount || 12500,
+        dpd: dpd || 30,
+        bucket: bucket
+    };
+}
+
 async function handleAgentSelfUpload() {
     const fileInput = document.getElementById('agent-file-input');
     const pasteInput = document.getElementById('agent-paste-numbers').value.trim();
@@ -891,24 +913,22 @@ async function handleAgentSelfUpload() {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-        casesToUpload = json.map(r => ({
-            customer_name: r.customer_name || r.name || 'Personal Debtor',
-            loan_account_no: r.loan_account_no || r.loan_id || `ACC-${Date.now().toString().slice(-4)}`,
-            primary_phone: String(r.primary_phone || r.phone || r.mobile || ''),
-            overdue_amount: parseFloat(r.overdue_amount || r.overdue || 0) || 0,
-            dpd: parseInt(r.dpd || 0) || 0,
-            bucket: r.bucket || 'SELF'
-        }));
+        casesToUpload = json.map((r, idx) => extractCaseFromRow(r, idx)).filter(c => c.primary_phone && c.primary_phone.length >= 10);
     } else if (pasteInput) {
         const lines = pasteInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        casesToUpload = lines.map((line, idx) => ({
-            customer_name: `Borrower #${idx + 1}`,
-            loan_account_no: `SLF-${Date.now().toString().slice(-4)}-${idx + 1}`,
-            primary_phone: line.replace(/\D/g, ''),
-            overdue_amount: 15000,
-            dpd: 45,
-            bucket: 'SELF'
-        }));
+        casesToUpload = lines.map((line, idx) => {
+            let digits = line.replace(/\D/g, '');
+            if (digits.length === 12 && digits.startsWith('91')) digits = digits.substring(2);
+            if (digits.length === 11 && digits.startsWith('0')) digits = digits.substring(1);
+            return {
+                customer_name: `Borrower #${idx + 1}`,
+                loan_account_no: `SLF-${Date.now().toString().slice(-4)}-${idx + 1}`,
+                primary_phone: digits,
+                overdue_amount: 15000,
+                dpd: 45,
+                bucket: 'SELF'
+            };
+        }).filter(c => c.primary_phone && c.primary_phone.length >= 10);
     } else {
         alert('Please select an Excel/CSV file or paste at least one phone number.');
         return;
